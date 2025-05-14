@@ -64,20 +64,11 @@ try:
     # --- Loop over rotation angles and simulate projections ---
     for angle_deg in ANGLES:
         theta_rad = np.deg2rad(angle_deg)
-        print('here')
         quat = build_quaternion(TILT_RAD, theta_rad)
-        print('here')
         labels = np.ascontiguousarray(labels, dtype=np.float32)
         rotated = np.ascontiguousarray(rotated, dtype=np.float32)
-        assert labels.shape == rotated.shape
-        assert labels.ndim == 3
-
         rotate_volume(labels, rotated, quat)
-        print('here')
-
-        I_sim = projection(rotated, lookup, voxel_size, config)
-        print('here')
-    
+        I_sim = projection(rotated, lookup, voxel_size, config)    
         projections.append(I_sim)
         logger.info(f"Angle {angle_deg:+.2f}° done")
 

@@ -1,7 +1,6 @@
 # Ignore model and simulation outputs
-Models/*.n5
+*.n5
 
-Output/*.n5
 
 # Ignore logs
 *.log

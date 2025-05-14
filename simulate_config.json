@@ -1,7 +1,7 @@
 {
-  "DATA_N5": "Models/Stained.n5",
-  "DATA_META": "Models/Stained.json",
-  "OUTPUT_N5": "Output/Stained_out.n5",
+  "DATA_N5": "/home/beams0/AMITTONE/Software/MSim/Models/Stained.n5",
+  "DATA_META": "/home/beams0/AMITTONE/Software/MSim/Models/Stained.json",
+  "OUTPUT_N5": "/home/beams0/AMITTONE/Software/MSim/Output/Stained_out.n5",
   "SCALE_KEY": "0",
   "CHUNKS_3D": [
     64,

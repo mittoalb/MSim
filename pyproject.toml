@@ -4,13 +4,15 @@ version = "0.1.0"
 description = "Modular X-ray simulation and visualization toolkit"
 authors = [{ name = "Alberto Mittone", email = "amittone@anl.gov" }]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
     "click",
     "numpy",
     "vedo",
-    "xraylib"
-]
+    "xraylib",
+    "numba",
+    "h5py"
+    ]
 
 [project.scripts]
 # CLI entry point

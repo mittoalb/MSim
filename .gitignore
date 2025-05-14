@@ -1,0 +1,32 @@
+# Ignore model and simulation outputs
+Models/
+Output/
+*.n5
+*.zarr
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore generated metadata/configs
+*.json
+!simulate_config.json
+
+# Ignore Jupyter/IPython artifacts
+.ipynb_checkpoints/
+*.ipynb
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Ignore virtual environments
+env/
+.venv/
+venv/
+
+# Ignore build artifacts
+build/
+dist/
+*.egg-info/

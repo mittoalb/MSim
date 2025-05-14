@@ -1,0 +1,21 @@
+{
+  "DATA_N5": "Models/Stained.n5",
+  "DATA_META": "Models/Stained.json",
+  "OUTPUT_N5": "Output/Stained_out.n5",
+  "SCALE_KEY": "0",
+  "CHUNKS_3D": [
+    64,
+    64,
+    64
+  ],
+  "CHUNKS_2D": [
+    256,
+    256
+  ],
+  "PAD": 50,
+  "ENERGY_KEV": 23.0,
+  "DETECTOR_DIST": 0.3,
+  "ENABLE_PHASE": true,
+  "ENABLE_ABSORPTION": true,
+  "ENABLE_SCATTER": true
+}

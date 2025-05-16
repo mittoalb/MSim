@@ -1,0 +1,19 @@
+{
+  "Si_substrate": 1,
+  "Buried_SiO2": 2,
+  "STI": 3,
+  "PSG": 4,
+  "SOD": 5,
+  "Barrier": 6,
+  "Cu1": 7,
+  "Cu2": 8,
+  "Cu3": 9,
+  "Cu4": 10,
+  "Cu5": 11,
+  "SiN_passivation": 12,
+  "pad_contact": 13,
+  "W_plug": 14,
+  "solder_bump": 15,
+  "pwell": 16,
+  "nwell": 17
+}

@@ -1,0 +1,55 @@
+{
+  "generate_brain": {
+    "output_dir": "brain_sample.zarr",
+    "n_slices": 100,
+    "ny": 100,
+    "nx": 100,
+    "seed": 22,
+    "num_cells": 50,
+    "chunks": [64, 64, 64],
+    "n_scales": 4,
+    "voxel_size": [1.0, 1.0, 1.0],
+    "macro_regions": 5,
+    "region_smoothness": 20,
+    "num_vessels": 10,
+    "max_depth": 5,
+    "vessel_radius": 10
+  },
+  "materials": {
+    "0": {
+      "alias": "background",
+      "composition": { "C": 0.60, "H": 0.08, "O": 0.32 },
+      "density": 1.18
+    },
+    "1": {
+      "alias": "low Osmium–stained tissue",
+      "composition": { "C": 0.58, "H": 0.08, "O": 0.32, "Os": 0.02 },
+      "density": 1.20
+    },
+    "2": {
+      "alias": "medium Osmium–stained tissue",
+      "composition": { "C": 0.56, "H": 0.08, "O": 0.32, "Os": 0.04 },
+      "density": 1.22
+    },
+    "3": {
+      "alias": "high Osmium–stained tissue",
+      "composition": { "C": 0.54, "H": 0.08, "O": 0.32, "Os": 0.06 },
+      "density": 1.24
+    },
+    "4": {
+      "alias": "water",
+      "composition": { "H": 0.11, "O": 0.89 },
+      "density": 1.00
+    },
+    "5": {
+      "alias": "neuronal cells",
+      "composition": { "C": 0.64, "H": 0.06, "O": 0.30 },
+      "density": 1.20
+    },
+    "7": {
+      "alias": "blood vessels",
+      "composition": { "C": 0.64, "H": 0.06, "O": 0.30 },
+      "density": 1.20
+    }
+  }
+}

@@ -8,9 +8,6 @@
 *.log
 logs/
 
-# Ignore generated metadata/configs
-*.json
-!simulate_config.json
 
 # Ignore Jupyter/IPython artifacts
 .ipynb_checkpoints/

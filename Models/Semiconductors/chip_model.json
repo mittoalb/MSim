@@ -1,0 +1,121 @@
+{
+  "lookup": {
+    "1": {
+      "alias": "Si_substrate"
+    },
+    "2": {
+      "alias": "Buried_SiO2"
+    },
+    "3": {
+      "alias": "STI"
+    },
+    "4": {
+      "alias": "PSG"
+    },
+    "5": {
+      "alias": "SOD"
+    },
+    "6": {
+      "alias": "Barrier"
+    },
+    "7": {
+      "alias": "Cu1"
+    },
+    "8": {
+      "alias": "Cu2"
+    },
+    "9": {
+      "alias": "Cu3"
+    },
+    "10": {
+      "alias": "Cu4"
+    },
+    "11": {
+      "alias": "Cu5"
+    },
+    "12": {
+      "alias": "SiN_passivation"
+    },
+    "13": {
+      "alias": "pad_contact"
+    },
+    "14": {
+      "alias": "W_plug"
+    },
+    "15": {
+      "alias": "solder_bump"
+    },
+    "16": {
+      "alias": "pwell"
+    },
+    "17": {
+      "alias": "nwell"
+    }
+  },
+  "layers": [
+    [
+      "Buried_SiO2",
+      10
+    ],
+    [
+      "STI",
+      6
+    ],
+    [
+      "Barrier",
+      2
+    ],
+    [
+      "Cu1",
+      8
+    ],
+    [
+      "SOD",
+      6
+    ],
+    [
+      "Cu2",
+      8
+    ],
+    [
+      "SOD",
+      6
+    ],
+    [
+      "Cu3",
+      8
+    ],
+    [
+      "SOD",
+      6
+    ],
+    [
+      "Cu4",
+      8
+    ],
+    [
+      "SOD",
+      6
+    ],
+    [
+      "Cu5",
+      8
+    ],
+    [
+      "PSG",
+      6
+    ],
+    [
+      "SiN_passivation",
+      5
+    ],
+    [
+      "pad_contact",
+      4
+    ],
+    [
+      "Si_substrate",
+      203
+    ]
+  ]
+}

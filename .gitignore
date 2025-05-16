@@ -1,6 +1,7 @@
 # Ignore model and simulation outputs
 *.n5
-
+*.h5
+*.prof
 
 # Ignore logs
 *.log

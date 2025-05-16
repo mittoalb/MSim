@@ -8,6 +8,10 @@ import xraylib
 from scipy.interpolate import interp1d
 from msim.logger import setup_custom_logger, log_exception
 
+#Add profiler
+import cProfile
+import pstats
+
 logger = setup_custom_logger('simulate_n5', lfname='logs/simulate_n5.log')
 
 CONFIG_PATH = "simulate_config.json"
@@ -70,6 +74,8 @@ def labels2map(n5_path, json_path, scale_key, energy_kev):
     return delta, mu_abs, mu_scat, tuple(voxel_size)
 
 def run_simulation(config_path="simulate_config.json"):
+    profiler = cProfile.Profile()
+    profiler.enable()
     try:
         config = load_config(config_path)
         delta_map, mu_abs_map, mu_scat_map, voxel_size = labels2map(
@@ -161,6 +167,11 @@ def run_simulation(config_path="simulate_config.json"):
         out.create_dataset('I_sum_z', data=I_sum_z_c.astype('float32'), chunks=tuple(config["CHUNKS_3D"]), compression='raw')
 
         logger.info("Saved simulation output to N5")
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('cumtime')
+        stats.print_stats(20)
+        stats.dump_stats('simulate_profile.prof')
+        print("Wrote profile to simulate_profile.prof")
 
     except Exception as e:
         log_exception(logger, e)

@@ -21,3 +21,10 @@ def run(config):
 def vis(volume_path):
     """Visualize a volume (.n5 or .zarr)"""
     view_volume(volume_path)
+
+#TO BE ADD
+@main.command()
+@click.argument("volume_path", type=click.Path(exists=True))
+def lamino(volume_path):
+    """Visualize a volume (.n5 or .zarr)"""
+    view_volume(volume_path)

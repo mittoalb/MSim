@@ -14,7 +14,7 @@
   ],
   "PAD": 50,
   "ENERGY_KEV": 23.0,
-  "DETECTOR_DIST": 0.3,
+  "DETECTOR_DIST": 0.1,
   "ENABLE_PHASE": true,
   "ENABLE_ABSORPTION": true,
   "ENABLE_SCATTER": true

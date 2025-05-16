@@ -11,7 +11,8 @@ dependencies = [
     "vedo",
     "xraylib",
     "numba",
-    "h5py"
+    "h5py",
+    "scipy"
     ]
 
 [project.scripts]

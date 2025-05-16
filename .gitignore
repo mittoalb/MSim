@@ -2,6 +2,7 @@
 *.n5
 *.h5
 *.prof
+*.zarr
 
 # Ignore logs
 *.log

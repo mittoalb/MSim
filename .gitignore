@@ -13,7 +13,7 @@ logs/
 
 # Ignore Jupyter/IPython artifacts
 .ipynb_checkpoints/
-*.ipynb
+
 
 # Ignore Python cache
 __pycache__/

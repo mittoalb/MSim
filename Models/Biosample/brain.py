@@ -2,6 +2,8 @@ import numpy as np
 import z5py, os, shutil, json
 from numba import njit
 import sys
+from MSim.iodata import save_multiscale_zarr
+
 
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
@@ -362,99 +364,6 @@ def add_macroregions(labels, macro_regions, region_smoothness, voxel_size):
 
     return labels
 
-"""
-def generate_brain(
-    output_dir="Stained_cells.n5",
-    n_slices=500,
-    ny=500,
-    nx=500,
-    seed=22,
-    num_cells=500,
-    chunks=(64, 64, 64),
-    n_scales=4,
-    voxel_size=[1.0, 1.0, 1.0],
-    macro_regions=3,
-    region_smoothness=20,
-    num_vessels=60,
-    max_depth=5,
-    vessel_radius=10
-):
-    try:
-        logger.info(f"Generating stained tissue labels with vascular tree, shape=({n_slices},{ny},{nx})")
-        rng = np.random.default_rng(seed)
-        labels = np.zeros((n_slices, ny, nx), dtype=np.uint8)
-
-        # after your tissue‐generation and before adding cells/vessels:
-        if macro_regions > 0:
-            labels = add_macroregions(
-                labels,
-                macro_regions,
-                region_smoothness,
-                voxel_size
-            )
-            logger.info(f"Applied {macro_regions} warped macro‐regions.")
-
-        logger.info(f"Generating {num_cells} neurons...")
-        labels = add_neurons(labels, voxel_size, num_cells=num_cells,
-                                    cell_radius_range=(2,10),
-                                    axon_dia_range=(1,2),
-                                    max_depth=5)
-
-
-        logger.info(f"Generating {num_vessels} vascular trees...")
-        for _ in range(num_vessels):
-            face = rng.integers(0, 6)
-            if face == 0:
-                root = (0, rng.integers(0, ny), rng.integers(0, nx))
-            elif face == 1:
-                root = (n_slices - 1, rng.integers(0, ny), rng.integers(0, nx))
-            elif face == 2:
-                root = (rng.integers(0, n_slices), 0, rng.integers(0, nx))
-            elif face == 3:
-                root = (rng.integers(0, n_slices), ny - 1, rng.integers(0, nx))
-            elif face == 4:
-                root = (rng.integers(0, n_slices), rng.integers(0, ny), 0)
-            else:
-                root = (rng.integers(0, n_slices), rng.integers(0, ny), nx - 1)
-
-            rng_vals = rng.random(50000)
-            draw_vessels(labels, root, max_depth=max_depth,
-                                base_radius=vessel_radius, rng_vals=rng_vals)
-
-
-        if os.path.exists(output_dir):
-            shutil.rmtree(output_dir)
-        f = z5py.File(output_dir, use_zarr_format=False)
-        for level in range(n_scales):
-            grp = f.require_group(str(level))
-            scaled = labels[::2 ** level, ::2 ** level, ::2 ** level]
-            grp.create_dataset('labels', data=scaled, chunks=chunks, compression='raw')
-
-        lookup = {
-            0: {'composition': {'C': 0.60, 'H': 0.08, 'O': 0.32}, 'density': 1.18},
-            1: {'composition': {'C': 0.58, 'H': 0.08, 'O': 0.32, 'Os': 0.02}, 'density': 1.20},
-            2: {'composition': {'C': 0.56, 'H': 0.08, 'O': 0.32, 'Os': 0.04}, 'density': 1.22},
-            3: {'composition': {'C': 0.54, 'H': 0.08, 'O': 0.32, 'Os': 0.06}, 'density': 1.24},
-            4: {'composition': {'H': 0.11, 'O': 0.89}, 'density': 1.0},
-            5: {'composition': {'C': 0.64, 'H': 0.06, 'O': 0.30}, 'density': 1.2},
-            7: {'composition': {'C': 0.64, 'H': 0.06, 'O': 0.30}, 'density': 1.2},
-            8: {'composition': {'H': 0.11, 'O': 0.89}, 'density': 1.0},
-        }
-
-        f.attrs['lookup'] = lookup
-        f.attrs['voxel_size'] = voxel_size
-        with open('Stained.json', 'w') as jf:
-            json.dump({
-                'lookup': lookup,
-                'voxel_size': voxel_size,
-                'description': 'Stained tissue with macro regions, cells, and vascular network'
-            }, jf, indent=2)
-
-        logger.info(f"Saved 3D labels with vascular tree to → {output_dir}")
-
-    except Exception as e:
-        log_exception(logger, e)
-"""
 
 def generate_brain(config_path="sim_config.json"):
     """
@@ -536,35 +445,22 @@ def generate_brain(config_path="sim_config.json"):
                 base_radius=vessel_radius,
                 rng_vals=rng_vals
             )
-        # Remove existing store and create Zarr/N5 via z5py
-        if os.path.exists(output_dir):
-            shutil.rmtree(output_dir)
-        # use_zarr_format=False for N5, True for Zarr stores
-        f = z5py.File(output_dir, use_zarr_format=True)
-        for level in range(n_scales):
-            grp = f.require_group(str(level))
-            scaled = labels[::2 ** level, ::2 ** level, ::2 ** level]
-            grp.create_dataset('labels', data=scaled, chunks=chunks, compression='raw')
 
-        # Attach complete metadata as attributes
-        f.attrs['lookup']      = lookup
-        f.attrs['voxel_size']  = voxel_size
-        f.attrs['config']      = params
-        f.attrs['description'] = 'Syntetic brain tissue'
-
-        # Also write descriptor JSON alongside
-        descriptor = {
-            'generate_brain': params,
-            'materials':       lookup
-        }
-        with open(os.path.splitext(output_dir)[0] + '.json', 'w') as jf:
-            json.dump(descriptor, jf, indent=2)
-
-        logger.info(f"Saved 3D labels with vascular tree to → {output_dir}")
-
+        # Save using modular Zarr writer
+        save_labeled_multiscale_zarr(
+            labels      = labels,
+            codes       = lookup,
+            output_dir  = output_dir,
+            voxel_size  = tuple(voxel_size),
+            n_scales    = n_scales,
+            base_chunk  = chunks,
+            config      = params,
+            logger      = logger
+        )
 
     except Exception as e:
         log_exception(logger, e)
+
 
 
 if __name__ == '__main__':

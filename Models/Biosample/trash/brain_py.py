@@ -2,8 +2,94 @@ import numpy as np
 import z5py, os, shutil, json
 from numba import njit
 import sys
-from MSim.iodata import save_multiscale_zarr
+#from io_data import save_multiscale_zarr
 
+
+import os, shutil, json, z5py, numpy as np
+
+def save_multiscale_zarr(
+    data,
+    codes,                              # {label_id: {"alias": str, ...}}
+    out_dir,
+    voxel_size=(0.25, 0.25, 0.1),       # (z, y, x) µm
+    n_scales=3,
+    base_chunk=(64, 64, 64),
+    logger=None
+):
+    """
+    Save a 3-D label volume as a Neuroglancer-ready multiscale Zarr.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        3-D label volume (z, y, x).
+    codes : dict
+        Mapping {label_id : metadata-dict}.  Stored in “lookup” Zarr attribute.
+    out_dir : str
+        Destination directory (e.g. 'brain_labels.zarr').
+    voxel_size : tuple[float, float, float], optional
+        Physical voxel size (µm) in (z, y, x) order.
+    n_scales : int, optional
+        Number of down-sampled pyramid levels (default 3 → levels 0…2).
+    base_chunk : tuple[int, int, int], optional
+        Base chunk size for level-0 dataset.  Higher levels reuse min(chunk, shape).
+    logger : logging.Logger | None
+        Optional logger.
+    """
+
+    # ------------------------------------------------------------------ I/O --
+    if os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
+    f = z5py.File(out_dir, use_zarr_format=True)
+
+    # ---------------------------------------------------------- write levels --
+    curr = data
+    datasets = []
+    for lvl in range(n_scales):
+        path   = str(lvl)
+        if path in f:
+            del f[path]
+
+        chunks = tuple(min(c, s) for c, s in zip(base_chunk, curr.shape))
+        f.create_dataset(path, data=curr, chunks=chunks, compression="raw")
+
+        scale = 2 ** lvl
+        datasets.append(
+            {
+                "path": path,
+                "coordinateTransformations": [
+                    {"type": "scale",       "scale": [scale] * 3},
+                    {"type": "translation", "translation": [scale / 2 - 0.5] * 3},
+                ],
+            }
+        )
+        curr = curr[::2, ::2, ::2]      # next level (simple 2× down-sampling)
+
+    # --------------------------------------------------------- add metadata --
+    # Ensure keys are ints (Neuroglancer prefers numeric IDs)
+    lookup = {int(k): v for k, v in codes.items()}
+    f.attrs["lookup"]      = lookup
+    f.attrs["voxel_size"]  = voxel_size
+
+    multiscale_meta = {
+        "version": "0.4",
+        "axes": [
+            {"name": "z", "type": "space"},
+            {"name": "y", "type": "space"},
+            {"name": "x", "type": "space"},
+        ],
+        "datasets": datasets,
+        "type": "image",
+        "metadata": {"voxel_size": voxel_size},
+    }
+    f.attrs["multiscales"] = [multiscale_meta]
+
+    # For static HTTP serving (Neuroglancer can read this JSON):
+    with open(os.path.join(out_dir, "multiscale.json"), "w") as fjson:
+        json.dump([multiscale_meta], fjson, indent=2)
+
+    if logger:
+        logger.info(f"Saved Neuroglancer-ready multiscale Zarr → {out_dir}")
 
 current_dir = os.path.dirname(__file__)
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
@@ -445,16 +531,15 @@ def generate_brain(config_path="sim_config.json"):
                 base_radius=vessel_radius,
                 rng_vals=rng_vals
             )
-
+	
         # Save using modular Zarr writer
-        save_labeled_multiscale_zarr(
-            labels      = labels,
+        save_multiscale_zarr(
+            data      = labels,
             codes       = lookup,
-            output_dir  = output_dir,
+            out_dir  = output_dir,
             voxel_size  = tuple(voxel_size),
             n_scales    = n_scales,
             base_chunk  = chunks,
-            config      = params,
             logger      = logger
         )
 

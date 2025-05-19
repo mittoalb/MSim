@@ -1,0 +1,75 @@
+{
+  "lookup": {
+    "0": {
+      "composition": {
+        "C": 0.6,
+        "H": 0.08,
+        "O": 0.32
+      },
+      "density": 1.18
+    },
+    "1": {
+      "composition": {
+        "C": 0.58,
+        "H": 0.08,
+        "O": 0.32,
+        "Os": 0.02
+      },
+      "density": 1.2
+    },
+    "2": {
+      "composition": {
+        "C": 0.56,
+        "H": 0.08,
+        "O": 0.32,
+        "Os": 0.04
+      },
+      "density": 1.22
+    },
+    "3": {
+      "composition": {
+        "C": 0.54,
+        "H": 0.08,
+        "O": 0.32,
+        "Os": 0.06
+      },
+      "density": 1.24
+    },
+    "4": {
+      "composition": {
+        "H": 0.11,
+        "O": 0.89
+      },
+      "density": 1.0
+    },
+    "5": {
+      "composition": {
+        "C": 0.64,
+        "H": 0.06,
+        "O": 0.3
+      },
+      "density": 1.2
+    },
+    "7": {
+      "composition": {
+        "C": 0.64,
+        "H": 0.06,
+        "O": 0.3
+      },
+      "density": 1.2
+    },
+    "8": {
+      "composition": {
+        "H": 0.11,
+        "O": 0.89
+      },
+      "density": 1.0
+    }
+  },
+  "voxel_size": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "description": "Stained tissue with macro regions, cells, and vascular network"
+}

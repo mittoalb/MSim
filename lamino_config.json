@@ -1,0 +1,8 @@
+{
+    "ANGLES": [0, 180],
+    "N_PROJ": 360,
+    "TILT_DEG": 0.0,
+    "OUTPUT_H5": "/home/beams0/AMITTONE/Software/MSim/Output/Stained_lamino_PAS.h5",
+    "INCLUDE_WHITE": false
+  }
+  

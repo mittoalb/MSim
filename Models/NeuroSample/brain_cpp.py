@@ -2,17 +2,17 @@
 import os
 import sys
 import json
-import shutil
 import numpy as np
-import z5py
-import math
+from scipy.ndimage import gaussian_filter
 
-# make sure our project root is on PYTHONPATH
+
 current_dir = os.path.dirname(__file__)
 parent_dir  = os.path.abspath(os.path.join(current_dir, os.pardir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+
+#local libs
 from logger import setup_custom_logger, log_exception
 import brain
 from utils import save_mzarr
@@ -23,6 +23,12 @@ CELL_VAL    = 5
 NUCLEUS_VAL = 7
 AXON_VAL    = 8
 VESSEL_VAL  = 5
+
+# ─────────────────────────────────────────────────────────────────────────────
+def smooth_labels(labels: np.ndarray, sigma=1.0) -> np.ndarray:
+    labels_f = labels.astype(np.float32)
+    smoothed = gaussian_filter(labels_f, sigma=sigma)
+    return np.rint(smoothed).astype(labels.dtype)
 
 # ─────────────────────────────────────────────────────────────────────────────
 def generate_brain(config_path="sim_config.json"):
@@ -95,6 +101,9 @@ def generate_brain(config_path="sim_config.json"):
             logger.info(f"Total vessel center-line length: {total_vessel_length:.1f} voxels")
         else:
             logger.info("Skipping vessel growth (num_vessels=0)")
+
+        # Smooth labels
+        labels = smooth_labels(labels, sigma=1.0)
 
         # ────────────── Save Multiscale Zarr ──────────────
         save_mzarr(

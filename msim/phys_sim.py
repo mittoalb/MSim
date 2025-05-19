@@ -32,7 +32,10 @@ def projection(volume_labels, lookup, voxel_size, config):
     xraylib.XRayInit()
     energy = config["ENERGY_KEV"]
     for k, props in lookup.items():
-        mask    = (volume_labels == int(k))
+        label   = props["label"]  # e.g., 1 for "Si_substrate"
+        mask    = (volume_labels == label)
+        
+        #mask    = (volume_labels == int(k))
         formula = ''.join(f"{el}{amt}" for el, amt in props['composition'].items())
         rho     = props['density']
 

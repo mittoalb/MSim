@@ -25,9 +25,7 @@ std::vector<double> gaussian_kernel(int radius, double sigma) {
 }
 
 //──────────────────────────────────────────────────────────────────────────────
-// carve warped horizontal layers, skipping occupied voxels
-//──────────────────────────────────────────────────────────────────────────────
-// carve warped horizontal layers, skipping occupied voxels
+// carve 3D Gaussian‐blurred noise into macro‐regions
 void add_macroregions(
     uint8_t *labels,
     uint8_t *occ,               // occupancy array (0 = free, 1 = occupied)
@@ -35,71 +33,150 @@ void add_macroregions(
     int macro_regions,
     double region_smoothness
 ) {
-    std::fill(occ, occ + nz * ny * nx, uint8_t(0));  // clear as 0
-    int radius = int(region_smoothness * 10);
-    auto kernel = gaussian_kernel(radius, region_smoothness);
+    // 1) clear
+    std::fill(occ, occ + nz * ny * nx, uint8_t(0));
 
-    // 1) generate per‐slice random warp2d[z][x]
+    // 2) generate uniform noise
     std::mt19937 gen(std::random_device{}());
     std::uniform_real_distribution<double> dist(0.0, 1.0);
-    std::vector<std::vector<double>> warp2d(nz, std::vector<double>(nx));
-    for (int z = 0; z < nz; ++z)
-        for (int x = 0; x < nx; ++x)
-            warp2d[z][x] = dist(gen);
+    std::vector<double> noise(nz * ny * nx);
+    for (auto &v : noise) v = dist(gen);
 
-    // 2) blur in X
-    std::vector<double> temp(nx);
-    for (int z = 0; z < nz; ++z) {
-        for (int x = 0; x < nx; ++x) {
-            double v = 0.0;
-            for (int k = -radius; k <= radius; ++k) {
-                int xx = std::clamp(x + k, 0, nx - 1);
-                v += warp2d[z][xx] * kernel[k + radius];
-            }
-            temp[x] = v;
-        }
-        warp2d[z].swap(temp);
-    }
+    // 3) build 1D Gaussian kernel
+    int radius = std::min( int(region_smoothness * 3), std::min({nz,ny,nx})/10 );
+    auto kernel = gaussian_kernel(radius, region_smoothness);
 
-    // 3) **NEW**: blur that result in Z so layers meander vertically
-    std::vector<double> tempz(nz);
-    for (int x = 0; x < nx; ++x) {
-        // compute column warp2d[:,x] → tempz
+    // helper lambda to index
+    auto idx3 = [&](int z,int y,int x){ return (z*ny + y)*nx + x; };
+
+    // 4) separable blur in X
+    {
+        std::vector<double> tmp(nx);
         for (int z = 0; z < nz; ++z) {
-            double v = 0.0;
-            for (int k = -radius; k <= radius; ++k) {
-                int zz = std::clamp(z + k, 0, nz - 1);
-                v += warp2d[zz][x] * kernel[k + radius];
+            for (int y = 0; y < ny; ++y) {
+                for (int x = 0; x < nx; ++x) {
+                    double sum = 0;
+                    for (int k = -radius; k <= radius; ++k) {
+                        int xx = std::clamp(x + k, 0, nx - 1);
+                        sum += noise[idx3(z,y,xx)] * kernel[k + radius];
+                    }
+                    tmp[x] = sum;
+                }
+                for (int x = 0; x < nx; ++x)
+                    noise[idx3(z,y,x)] = tmp[x];
             }
-            tempz[z] = v;
-        }
-        // write back blurred column
-        for (int z = 0; z < nz; ++z) {
-            warp2d[z][x] = tempz[z];
         }
     }
 
-    // 4) carve your layers using the now-2D+Z‐blurred warp field
-    double layer_thick = double(ny) / macro_regions;
+    // 5) separable blur in Y
+    {
+        std::vector<double> tmp(ny);
+        for (int z = 0; z < nz; ++z) {
+            for (int x = 0; x < nx; ++x) {
+                for (int y = 0; y < ny; ++y) {
+                    double sum = 0;
+                    for (int k = -radius; k <= radius; ++k) {
+                        int yy = std::clamp(y + k, 0, ny - 1);
+                        sum += noise[idx3(z,yy,x)] * kernel[k + radius];
+                    }
+                    tmp[y] = sum;
+                }
+                for (int y = 0; y < ny; ++y)
+                    noise[idx3(z,y,x)] = tmp[y];
+            }
+        }
+    }
+
+    // 6) separable blur in Z
+    {
+        std::vector<double> tmp(nz);
+        for (int y = 0; y < ny; ++y) {
+            for (int x = 0; x < nx; ++x) {
+                for (int z = 0; z < nz; ++z) {
+                    double sum = 0;
+                    for (int k = -radius; k <= radius; ++k) {
+                        int zz = std::clamp(z + k, 0, nz - 1);
+                        sum += noise[idx3(zz,y,x)] * kernel[k + radius];
+                    }
+                    tmp[z] = sum;
+                }
+                for (int z = 0; z < nz; ++z)
+                    noise[idx3(z,y,x)] = tmp[z];
+            }
+        }
+    }
+
+    // 7) quantize noise into equal‐width bins → labels 1..macro_regions
     for (int z = 0; z < nz; ++z) {
         for (int y = 0; y < ny; ++y) {
             for (int x = 0; x < nx; ++x) {
-                int idx = (z * ny + y) * nx + x;
-                if (occ[idx]) continue;
-                double warp = (warp2d[z][x] - 0.5) * (layer_thick * 0.4);
-                for (int r = 0; r < macro_regions; ++r) {
-                    double lo = r * layer_thick + warp;
-                    double hi = (r + 1) * layer_thick + warp;
-                    if (y >= lo && y < hi) {
-                        labels[idx] = uint8_t(r + 1);
-                        occ[idx]    = 1;  // mark occupied
-                        break;
-                    }
-                }
+                int i = idx3(z,y,x);
+                double v = noise[i];        // in [0,1)
+                int bin = std::min(int(v * macro_regions), macro_regions - 1);
+                labels[i] = uint8_t(bin + 1);
+                occ[i]    = 1;
             }
         }
     }
 }
+
+
+
+void draw_tortuous_axon_with_terminal_dendrites(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    int z0, int y0, int x0,
+    double dx, double dy, double dz,
+    int trunk_len,
+    int base_radius,
+    const float* rng_vals, int rng_len,
+    int dendrite_depth,
+    int dendrite_max_branches,
+    int dendrite_branch_len,
+    double radius_decay,
+    double& total_length
+) {
+    double pz = z0, py = y0, px = x0;
+    double fdx = dx, fdy = dy, fdz = dz;
+    double norm = std::sqrt(fdx*fdx + fdy*fdy + fdz*fdz) + 1e-6;
+    fdx /= norm; fdy /= norm; fdz /= norm;
+
+    for (int t = 0, idx = 0; t < trunk_len; ++t) {
+        if ((t % 5) == 0 && idx + 3 <= rng_len) {
+            fdx += (rng_vals[idx++] - 0.5) * 0.3;
+            fdy += (rng_vals[idx++] - 0.5) * 0.3;
+            fdz += (rng_vals[idx++] - 0.5) * 0.3;
+            double m = std::sqrt(fdx*fdx + fdy*fdy + fdz*fdz) + 1e-6;
+            fdx /= m; fdy /= m; fdz /= m;
+        }
+
+        int zi = int(std::round(pz));
+        int yi = int(std::round(py));
+        int xi = int(std::round(px));
+        if (zi < 0 || zi >= nz || yi < 0 || yi >= ny || xi < 0 || xi >= nx)
+            break;
+
+        int off = (zi * ny + yi) * nx + xi;
+        if (!occ[off]) {
+            carve_ball(labels, occ, nz, ny, nx, zi, yi, xi, base_radius, /*AXON*/ 5, total_length);
+        }
+
+        pz += fdz;
+        py += fdy;
+        px += fdx;
+    }
+
+    // Add dendrites at axon tip
+    branch_axons(labels, occ, nz, ny, nx,
+        int(std::round(pz)), int(std::round(py)), int(std::round(px)),
+        0, 0, fdx, fdy, fdz,
+        base_radius, dendrite_depth,
+        rng_vals, rng_len,
+        total_length);
+}
+
+
 
 //──────────────────────────────────────────────────────────────────────────────
 // iterative jitter + Fibonacci branching for axons
@@ -194,6 +271,39 @@ void branch_axons(
 }
 
 //──────────────────────────────────────────────────────────────────────────────
+
+void draw_axons(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    int z0, int y0, int x0,
+    int z1, int y1, int x1,
+    int max_depth,
+    int base_radius,
+    const float* rng_vals, int rng_len,
+    double& total_length
+) {
+    int dz_ = z1 - z0, dy_ = y1 - y0, dx_ = x1 - x0;
+    double norm = std::sqrt(dx_ * dx_ + dy_ * dy_ + dz_ * dz_) + 1e-6;
+    double dir_z = dz_ / norm, dir_y = dy_ / norm, dir_x = dx_ / norm;
+    int trunk_len = int(std::ceil(norm));
+
+    draw_tortuous_axon_with_terminal_dendrites(
+        labels, occ, nz, ny, nx,
+        z0, y0, x0,
+        dir_x, dir_y, dir_z,
+        trunk_len, base_radius,
+        rng_vals, rng_len,
+        /* dendrite_depth */ max_depth,
+        /* dendrite_max_branches */ 4,
+        /* dendrite_branch_len */ 80,
+        /* radius_decay */ 0.5,
+        total_length
+    );
+}
+
+
+
 // straight trunk + branch
 void draw_axons(
     uint8_t *labels,
@@ -323,22 +433,53 @@ double add_neurons(
 
     std::vector<std::array<int, 3>> centers;
     centers.reserve(num_cells);
+
     for (int i = 0; i < num_cells; ++i) {
         int zc = Dz(gen), yc = Dy(gen), xc = Dx(gen);
         centers.push_back({zc, yc, xc});
-        int R_px = std::max(1, int(std::round(Dr_cell(gen) / px)));
-        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_px, /*CELL*/ 6, total_length);
-        int r_in = std::max(1, int(R_px * 0.3));
-        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, r_in, /*NUCL*/ 2, total_length);
+
+        // Soma size (diameter = 10–20 μm)
+        int R_soma = std::max(4, int(std::round(Dr_cell(gen) / px)));
+        int R_nucl = std::max(1, int(R_soma * 0.3));
+        int R_dend = std::max(1, int(R_soma * 0.4));
+
+        // Carve soma and nucleus
+        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_soma, /*CELL*/ 6, total_length);
+        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_nucl, /*NUCL*/ 2, total_length);
+
+        // Multiple dendrites per soma
+        const int NUM_DENDRITES = 5;
+        for (int d = 0; d < NUM_DENDRITES; ++d) {
+            double dx0 = Dr(gen) - 0.5;
+            double dy0 = Dr(gen) - 0.5;
+            double dz0 = Dr(gen) - 0.5;
+            double norm = std::sqrt(dx0 * dx0 + dy0 * dy0 + dz0 * dz0) + 1e-6;
+            dx0 /= norm; dy0 /= norm; dz0 /= norm;
+
+            branch_axons(
+                labels, occ, nz, ny, nx,
+                zc, yc, xc,
+                0, d * 100,
+                dx0, dy0, dz0,
+                R_dend,
+                max_depth,
+                rng_vals.get(), RNG_LEN,
+                total_length,
+                /* max_branches_base */ 10,
+                /* label */ 7  // dendrites
+            );
+        }
     }
 
+    // Generate axonal trunks + terminal dendrites
     double ax_px = Dr_axon(gen) / px;
-    connect_cells(labels, occ, total_length,
+    connect_cells(
+        labels, occ, total_length,
         nz, ny, nx,
         centers, max_depth,
         ax_px,
-        rng_vals.get(), RNG_LEN);
+        rng_vals.get(), RNG_LEN
+    );
 
     return total_length;
 }
-

@@ -36,10 +36,14 @@ try:
 
     logger.info(f"Using volume from: {DATA_N5}")
 
-    # --- Load label volume and metadata ---
-    def load_labels(n5_path, scale_key):
-        f = z5py.File(n5_path, use_zarr_format=False)
-        return f[scale_key]['labels'][...]
+#    # --- Load label volume and metadata ---
+#    def load_labels(n5_path, scale_key):
+#        f = z5py.File(n5_path, use_zarr_format=False)
+#        return f[scale_key]['labels'][...]
+    
+    def load_labels(zarr_path, scale_key):
+        f = z5py.File(zarr_path, use_zarr_format=True)
+        return f[scale_key][...]    
 
     def load_lookup(json_path):
         with open(json_path, 'r') as f:

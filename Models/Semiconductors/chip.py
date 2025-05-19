@@ -7,21 +7,72 @@ import numpy as np
 import z5py
 from typing import Callable, Optional
 
-
-from io_data import save_multiscale_zarr
-from MSim import logger
-from MSim import tiled, CODES
-
-
-
-# Ensure parent directory on path for logger
 current_dir = os.path.dirname(__file__)
-parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+parent_dir  = os.path.abspath(os.path.join(current_dir, os.pardir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+
 from logger import setup_custom_logger, log_exception
+#from utils import save_mzarr
+
 
 logger = setup_custom_logger("chipgen", lfname="chipgen.log")
+
+
+def save_mzarr(data, codes, out_dir,
+               voxel_size, n_scales, base_chunk, logger):
+    if os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
+    f = z5py.File(out_dir, use_zarr_format=True)
+    curr = data
+    datasets = []
+    for lvl in range(n_scales):
+        path   = str(lvl)
+        chunks = tuple(min(c, s) for c, s in zip(base_chunk, curr.shape))
+        f.create_dataset(path, data=curr, chunks=chunks, compression="raw")
+        scale = 2**lvl
+        datasets.append({
+            "path": path,
+            "coordinateTransformations": [
+                {"type": "scale",       "scale": [scale]*3},
+                {"type": "translation", "translation": [scale/2 - 0.5]*3},
+            ]
+        })
+        curr = curr[::2, ::2, ::2]
+
+    # Save original codes as-is for internal use
+    f.attrs["lookup"]     = codes
+    f.attrs["voxel_size"] = voxel_size
+
+    multiscale_meta = {
+        "version": "0.4",
+        "axes": [
+            {"name": "z", "type": "space"},
+            {"name": "y", "type": "space"},
+            {"name": "x", "type": "space"},
+        ],
+        "datasets": datasets,
+        "type": "image",
+        "metadata": {
+            "voxel_size": voxel_size
+        }
+    }
+
+    # Add brain-style "materials" layout to the JSON
+    materials = {
+        str(v): {"alias": k} for k, v in codes.items()
+    }
+
+    with open(os.path.join(out_dir, "multiscale.json"), "w") as fj:
+        json.dump({
+            "multiscale": multiscale_meta,
+            "materials": materials
+        }, fj, indent=2)
+
+    if logger:
+        logger.info(f"Saved multiscale Zarr → {out_dir}")
+
+
 
 
 #--------------------------------------------------
@@ -1303,8 +1354,6 @@ def generate_chip(
 
     vol = add_solder_bump(vol, base_diameter)
 
-
-    
     if via_specs:
         for spec in via_specs:
             # expand spec dict to positional args for add_via
@@ -1356,7 +1405,7 @@ if __name__ == '__main__':
 
 
     # tile it 2×2 in‐plane
-    tiled = tile_unit_cell(model, grid=(4,4))
+    tiled = tile_unit_cell(model, grid=(8,8))
 
     # update shape and (if needed) layers metadata
     # shape_z unchanged, but y,x doubled
@@ -1364,7 +1413,7 @@ if __name__ == '__main__':
     logger.info(f"Tiled model shape={tiled.shape}")
 
     #SAVE DATA
-    save_multiscale_zarr(
+    save_mzarr(
         data=tiled,
         codes=CODES,
         out_dir="chip_model.zarr",

@@ -1,7 +1,7 @@
 {
-  "DATA_N5": "/home/beams0/AMITTONE/Software/MSim/Models/Stained.n5",
-  "DATA_META": "/home/beams0/AMITTONE/Software/MSim/Models/Stained.json",
-  "OUTPUT_N5": "/home/beams0/AMITTONE/Software/MSim/Output/Stained_out.n5",
+  "DATA_N5": "/home/beams/AMITTONE/Software/MSim/Models/Semiconductors/chip_model.zarr",
+  "DATA_META": "/home/beams/AMITTONE/Software/MSim/Models/Semiconductors/chip_codes.json",
+  "OUTPUT_N5": "/home/beams0/AMITTONE/Software/MSim/Output/chip_out.n5",
   "SCALE_KEY": "0",
   "CHUNKS_3D": [
     64,

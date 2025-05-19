@@ -25,7 +25,6 @@ double draw_vessels(
 );
 
 // plant many roots, carve them into labels[], return total center-line length
-// now samples each vessel’s start radius around an average
 double add_vessels(
     uint8_t* labels,
     int      nz, int ny, int nx,

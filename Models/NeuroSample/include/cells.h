@@ -57,18 +57,20 @@ double add_neurons(
 );
 
 std::array<int, 3> draw_axon_tube(
-    uint8_t* labels,
-    uint8_t* occ,
+    uint8_t* labels, uint8_t* occ,
     int nz, int ny, int nx,
     int z0, int y0, int x0,
-    double dx0, double dy0, double dz0,
+    double dx, double dy, double dz,
     int steps,
     int radius,
     const float* rng_vals, int rng_len,
     int& rng_index,
     double& total_length,
-    double jitter = 0.2  // <── ADD THIS
+    double jitter,
+    const std::vector<std::array<double, 3>>* bundle_dirs = nullptr,
+    double bundle_strength = 0.0
 );
+
 
 void add_glial(
     uint8_t* labels,

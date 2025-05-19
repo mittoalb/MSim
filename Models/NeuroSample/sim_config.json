@@ -6,11 +6,11 @@
     "nx":                     1000,
     "seed":                   22,
 
-    "num_cells":              0,
+    "num_cells":              5000,
     "cell_radius_range":      [4, 20],
     "axon_dia_range":         [2, 6],
 
-    "num_glia":               100,
+    "num_glia":               5000,
     "glia_radius_min":        3,
     "glia_radius_max":        6,
     "glia_dend_depth":        2,

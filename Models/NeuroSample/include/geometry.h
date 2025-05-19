@@ -1,3 +1,6 @@
+#ifndef GEOMETRY_H
+#define GEOMETRY_H
+
 //geometry.h
 #pragma once
 #include <cstdint>
@@ -188,3 +191,4 @@ inline void carve_cylinder_segment(
         }
     }
 }
+#endif // GEOMETRY_H

@@ -5,19 +5,28 @@
     "ny":                     1000,
     "nx":                     1000,
     "seed":                   22,
-    "num_cells":              1000,
+
+    "num_cells":              0,
     "cell_radius_range":      [4, 20],
     "axon_dia_range":         [2, 6],
+
+    "num_glia":               100,
+    "glia_radius_min":        3,
+    "glia_radius_max":        6,
+    "glia_dend_depth":        2,
+    "glia_dend_branches":     3,
+
     "chunks":                 [64, 64, 64],
     "n_scales":               4,
     "voxel_size":             [1.0, 1.0, 1.0],
+
     "macro_regions":          0,
     "region_smoothness":      5,
 
     "num_vessels":            30,
     "max_depth":              500,
-    "vessel_radius_avg":       10,
-    "vessel_radius_jitter":   0.9,    
+    "vessel_radius_avg":      10,
+    "vessel_radius_jitter":   0.9,
     "vessel_trunk_len":       50,
     "vessel_jitter_interval": 10,
     "vessel_max_branches":    2,
@@ -50,21 +59,25 @@
       "composition": { "H": 0.11, "O": 0.89 },
       "density":     1.00
     },
-    "5": {
+    "20": {
       "alias":       "neuronal cells",
       "composition": { "C": 0.64, "H": 0.06,  "O": 0.30 },
       "density":     1.20
     },
-    "7": {
+    "25": {
+      "alias":       "glial cells",
+      "composition": { "C": 0.62, "H": 0.07,  "O": 0.31 },
+      "density":     1.18
+    },
+    "50": {
       "alias":       "blood vessels",
       "composition": { "C": 0.64, "H": 0.06,  "O": 0.30 },
       "density":     1.20
     },
-    "8": {
+    "70": {
       "alias":       "blood vessels Lumen",
       "composition": { "C": 0.64, "H": 0.06,  "O": 0.30 },
       "density":     1.02
     }
   }
 }
-

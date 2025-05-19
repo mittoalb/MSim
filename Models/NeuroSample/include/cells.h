@@ -69,4 +69,18 @@ std::array<int, 3> draw_axon_tube(
     double& total_length,
     double jitter = 0.2  // <── ADD THIS
 );
+
+void add_glial(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    int num_glia,
+    int glia_radius_min,
+    int glia_radius_max,
+    int dend_depth,
+    int dend_branches,
+    const float* rng_vals,
+    int rng_len,
+    double& total_length
+);
 #endif // CELLS_H

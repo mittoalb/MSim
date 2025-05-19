@@ -527,3 +527,63 @@ double add_neurons(
 
     return total_length;
 }
+
+void add_glial(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    int num_glia,
+    int glia_radius_min,
+    int glia_radius_max,
+    int dend_depth,
+    int dend_branches,
+    const float* rng_vals,
+    int rng_len,
+    double& total_length
+) {
+    std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<int> Dz(0, nz - 1), Dy(0, ny - 1), Dx(0, nx - 1);
+    std::uniform_int_distribution<int> Dr(glia_radius_min, glia_radius_max);
+    std::uniform_real_distribution<float> Drf(0.0f, 1.0f);
+
+    const uint8_t GLIA_LABEL = 9;
+    const uint8_t GLIA_PROC_LABEL = 8;
+    int rng_index = 0;
+    int placed = 0;
+
+    for (int attempt = 0; attempt < num_glia * 20 && placed < num_glia; ++attempt) {
+        int zc = Dz(gen), yc = Dy(gen), xc = Dx(gen);
+        int rz = Dr(gen), ry = Dr(gen), rx = Dr(gen);
+
+        if (!can_place_ellipsoid(occ, nz, ny, nx, zc, yc, xc, rz, ry, rx))
+            continue;
+
+        // Carve glial soma as ellipsoid
+        carve_ellipsoid(labels, occ, nz, ny, nx, zc, yc, xc, rz, ry, rx, GLIA_LABEL, total_length);
+
+        // Grow 3–5 short branched dendrite-like arbors
+        int num_procs = 3 + (rng_vals[rng_index++ % rng_len] * 3);
+        for (int i = 0; i < num_procs; ++i) {
+            double dx = Drf(gen) - 0.5;
+            double dy = Drf(gen) - 0.5;
+            double dz = Drf(gen) - 0.5;
+            double norm = std::sqrt(dx*dx + dy*dy + dz*dz) + 1e-6;
+            dx /= norm; dy /= norm; dz /= norm;
+
+            grow_dendrites_from(
+                labels, occ, nz, ny, nx,
+                zc, yc, xc,
+                std::max(1, int(0.3 * std::min({rz, ry, rx}))),
+                dend_depth,
+                dend_branches,
+                rng_vals, rng_len,
+                rng_index,
+                total_length,
+                GLIA_PROC_LABEL
+            );
+            rng_index += 64;
+        }
+
+        ++placed;
+    }
+}

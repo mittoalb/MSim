@@ -55,22 +55,6 @@ def generate_brain(config_path="sim_config.json"):
         else:
             logger.info("Skipping macro-regions (macro_regions=0)")
 
-        # ────────────── Neurons & Axons ──────────────
-        num_cells = params.get("num_cells", 0)
-        if num_cells > 0:
-            logger.info(f"Adding {num_cells} neurons…")
-            total_neuron_length = brain.add_neurons(
-                labels, occupied,
-                tuple(params["voxel_size"]),
-                num_cells,
-                tuple(params["cell_radius_range"]),
-                tuple(params["axon_dia_range"]),
-                params["max_depth"]
-            )
-            logger.info(f"Total neuron length: {total_neuron_length:.1f} voxels")
-        else:
-            logger.info("Skipping neuron placement (num_cells=0)")
-
         # ────────────── Vessels ──────────────
         num_vessels             = params.get("num_vessels", 0)
         vessel_radius_avg       = params["vessel_radius_avg"]
@@ -102,9 +86,45 @@ def generate_brain(config_path="sim_config.json"):
         else:
             logger.info("Skipping vessel growth (num_vessels=0)")
 
-        # Smooth labels
-        labels = smooth_labels(labels, sigma=1.0)
+        # ────────────── Neurons & Axons ──────────────
+        num_cells = params.get("num_cells", 0)
+        if num_cells > 0:
+            logger.info(f"Adding {num_cells} neurons…")
+            total_neuron_length = brain.add_neurons(
+                labels, occupied,
+                tuple(params["voxel_size"]),
+                num_cells,
+                tuple(params["cell_radius_range"]),
+                tuple(params["axon_dia_range"]),
+                params["max_depth"]
+            )
+            logger.info(f"Total neuron length: {total_neuron_length:.1f} voxels")
+        else:
+            logger.info("Skipping neuron placement (num_cells=0)")
 
+        # ────────────── Glial Cells ──────────────
+        num_glia = params.get("num_glia", 0)
+        if num_glia > 0:
+            logger.info(f"Adding {num_glia} glial cells…")
+            rng_vals = np.random.RandomState(seed + 1).rand(1_000_000).astype(np.float32)
+
+            total_glia_length = brain.add_glial(
+                labels,
+                occupied,
+                num_glia,
+                params["glia_radius_min"],
+                params["glia_radius_max"],
+                params["glia_dend_depth"],
+                params["glia_dend_branches"],
+                rng_vals
+            )
+            logger.info(f"Total glial dendrite length: {total_glia_length:.1f} voxels")
+        else:
+            logger.info("Skipping glial cell placement (num_glia=0)")
+
+
+        # ──────────────     Smooth labels ──────────────
+        labels = smooth_labels(labels, sigma=1.0)
         # ────────────── Save Multiscale Zarr ──────────────
         save_mzarr(
             data       = labels,

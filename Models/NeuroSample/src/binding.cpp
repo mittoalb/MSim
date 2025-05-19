@@ -157,5 +157,51 @@ PYBIND11_MODULE(brain, m) {
         py::arg("axon_dia_range"),
         py::arg("max_depth")
     );
+
+
+    //──────────────────────────────────────────────────────────────────────────
+    m.def("add_glial",
+        [](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> labels,
+        py::array_t<uint8_t, py::array::c_style | py::array::forcecast> occ,
+        int num_glia,
+        int glia_radius_min,
+        int glia_radius_max,
+        int dend_depth,
+        int dend_branches,
+        py::array_t<float, py::array::c_style | py::array::forcecast> rng_vals)
+        {
+            auto lb = labels.request();
+            auto ob = occ.request();
+            auto rb = rng_vals.request();
+            if (lb.ndim != 3 || ob.ndim != 3 || rb.ndim != 1)
+                throw std::runtime_error("labels and occ must be 3-D, rng_vals must be 1-D");
+            int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
+
+            double total_length = 0.0;
+            add_glial(
+                static_cast<uint8_t*>(lb.ptr),
+                static_cast<uint8_t*>(ob.ptr),
+                nz, ny, nx,
+                num_glia,
+                glia_radius_min,
+                glia_radius_max,
+                dend_depth,
+                dend_branches,
+                static_cast<const float*>(rb.ptr),
+                rb.size,
+                total_length
+            );
+            return total_length;
+        },
+        py::arg("labels"),
+        py::arg("occ"),
+        py::arg("num_glia"),
+        py::arg("glia_radius_min"),
+        py::arg("glia_radius_max"),
+        py::arg("dend_depth"),
+        py::arg("dend_branches"),
+        py::arg("rng_vals")
+    );
+
 }
 

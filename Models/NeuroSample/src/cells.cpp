@@ -128,84 +128,79 @@ void add_macroregions(
 
 //──────────────────────────────────────────────────────────────────────────────
 // Modified draw_axon_tube with local bundling and curvature
-std::array<int, 3> draw_axon_tube(
+std::array<int,3> draw_axon_tube(
     uint8_t* labels, uint8_t* occ,
     int nz, int ny, int nx,
     int z0, int y0, int x0,
     double dx, double dy, double dz,
     int steps,
     int radius,
-    const float* rng_vals, int rng_len,
+    const float* rng_vals,
+    int rng_len,
     int& rng_index,
     double& total_length,
     double jitter,
-    const std::vector<std::array<double, 3>>* bundle_dirs,
-    double bundle_strength,
+    double persist,
+    const std::vector<std::array<double,3>>* converge_pts,
+    double converge_radius,
+    double converge_strength,
     uint8_t wall_label,
     uint8_t lumen_label
 ) {
-    double pz = z0, py = y0, px = x0;
-    double vx = dx, vy = dy, vz = dz;
-    double norm = std::sqrt(vx * vx + vy * vy + vz * vz) + 1e-6;
-    const std::array<double, 3> global_dir = {0.0, 1.0, 0.0};  // Y-axis bundle
+    double pz=z0, py=y0, px=x0;
+    double vx=dx, vy=dy, vz=dz;
+    double m = std::sqrt(vx*vx+vy*vy+vz*vz)+1e-6;
+    vx/=m; vy/=m; vz/=m;
+    int zi=z0, yi=y0, xi=x0;
 
-    vx /= norm; vy /= norm; vz /= norm;
-
-    // Apply global bundling bias
-    if (bundle_dirs && !bundle_dirs->empty()) {
-        double avg_dx = 0, avg_dy = 0, avg_dz = 0;
-        for (const auto& b : *bundle_dirs) {
-            avg_dx += b[0]; avg_dy += b[1]; avg_dz += b[2];
-        }
-        int n = bundle_dirs->size();
-        avg_dx /= n; avg_dy /= n; avg_dz /= n;
-
-        vx = vx * (1.0 - bundle_strength) + global_dir[2] * bundle_strength;
-        vy = vy * (1.0 - bundle_strength) + global_dir[1] * bundle_strength;
-        vz = vz * (1.0 - bundle_strength) + global_dir[0] * bundle_strength;
-
-        //vx = (1.0 - bundle_strength) * vx + bundle_strength * avg_dx;
-        //vy = (1.0 - bundle_strength) * vy + bundle_strength * avg_dy;
-        //vz = (1.0 - bundle_strength) * vz + bundle_strength * avg_dz;
-        double mag = std::sqrt(vx * vx + vy * vy + vz * vz) + 1e-6;
-        vx /= mag; vy /= mag; vz /= mag;
-    }
-
-    int z1 = z0, y1 = y0, x1 = x0;
-    const int JITTER_INTERVAL = 4;
-
-    for (int s = 0; s < steps; ++s) {
-        if ((s % JITTER_INTERVAL == 0) && (rng_index + 3 < rng_len)) {
-            vx += (rng_vals[rng_index++] - 0.5) * jitter;
-            vy += (rng_vals[rng_index++] - 0.5) * jitter;
-            vz += (rng_vals[rng_index++] - 0.5) * jitter;
-            double m = std::sqrt(vx * vx + vy * vy + vz * vz) + 1e-6;
-            vx /= m; vy /= m; vz /= m;
+    for(int s=0; s<steps; ++s) {
+        // convergence pull
+        if(converge_pts) {
+            for(auto& tgt: *converge_pts) {
+                double tz=tgt[0]-pz, ty=tgt[1]-py, tx=tgt[2]-px;
+                double d = std::sqrt(tx*tx+ty*ty+tz*tz);
+                if(d<converge_radius && d>1e-6) {
+                    double w = (converge_strength>=1.0?1.0:converge_strength);
+                    vx = (1-w)*vx + w*(tx/d);
+                    vy = (1-w)*vy + w*(ty/d);
+                    vz = (1-w)*vz + w*(tz/d);
+                    m = std::sqrt(vx*vx+vy*vy+vz*vz)+1e-6;
+                    vx/=m; vy/=m; vz/=m;
+                    break;
+                }
+            }
         }
 
-        double px1 = px + vx, py1 = py + vy, pz1 = pz + vz;
+        // Brownian jitter
+        if(rng_index+3 < rng_len) {
+            double rx = rng_vals[rng_index++] - 0.5;
+            double ry = rng_vals[rng_index++] - 0.5;
+            double rz = rng_vals[rng_index++] - 0.5;
+            vx = persist*vx + jitter*rx;
+            vy = persist*vy + jitter*ry;
+            vz = persist*vz + jitter*rz;
+            m = std::sqrt(vx*vx+vy*vy+vz*vz)+1e-6;
+            vx/=m; vy/=m; vz/=m;
+        }
+
+        // advance
+        double pz1=pz+vz, py1=py+vy, px1=px+vx;
         carve_cylinder_segment(
             labels, occ, nz, ny, nx,
             pz, py, px,
             pz1, py1, px1,
             radius,
-            wall_label,
-            lumen_label,
+            wall_label, lumen_label,
             total_length
         );
-
-        px = px1; py = py1; pz = pz1;
-        z1 = int(std::round(pz1));
-        y1 = int(std::round(py1));
-        x1 = int(std::round(px1));
-        if (z1 < 0 || z1 >= nz || y1 < 0 || y1 >= ny || x1 < 0 || x1 >= nx)
-            break;
+        pz=pz1; py=py1; px=px1;
+        zi=int(std::round(pz));
+        yi=int(std::round(py));
+        xi=int(std::round(px));
+        if(zi<0||zi>=nz||yi<0||yi>=ny||xi<0||xi>=nx) break;
     }
-
-    return {z1, y1, x1};
+    return {zi, yi, xi};
 }
-
-
 
 //──────────────────────────────────────────────────────────────────────────────
 void grow_dendrites_from(
@@ -385,79 +380,108 @@ void connect_somas_with_synapses(
     uint8_t* labels,
     uint8_t* occ,
     int nz, int ny, int nx,
-    const std::vector<std::array<int, 3>>& centers,
-    const float* rng_vals, int rng_len, int& rng_index,
+    const std::vector<std::array<int,3>>& centers,
+    const float* rng_vals,
+    int rng_len,
+    int& rng_index,
     double& total_length,
-    int dend_radius,
-    int dend_depth,
+    int axon_steps,
+    int axon_radius,
+    float jitter,
+    float persist,
     int dend_branches,
-    float extra_connection_prob,
+    float extra_conn_prob,
     uint8_t synapse_label
 ) {
-    int n = centers.size();
-    std::vector<double> d2(n * n);
+    for (const auto& soma : centers) {
+        int zc = soma[0], yc = soma[1], xc = soma[2];
 
-    // Compute pairwise squared distances
-    for (int i = 0; i < n; ++i)
-        for (int j = i + 1; j < n; ++j) {
-            int dz = centers[j][0] - centers[i][0];
-            int dy = centers[j][1] - centers[i][1];
-            int dx = centers[j][2] - centers[i][2];
-            d2[i * n + j] = d2[j * n + i] = double(dz * dz + dy * dy + dx * dx);
-        }
+        // Sample initial random unit direction
+        double dx0 = rng_vals[rng_index++] - 0.5;
+        double dy0 = rng_vals[rng_index++] - 0.5;
+        double dz0 = rng_vals[rng_index++] - 0.5;
+        double m0  = std::sqrt(dx0*dx0 + dy0*dy0 + dz0*dz0) + 1e-6;
+        dx0 /= m0; dy0 /= m0; dz0 /= m0;
 
-    // Build MST (Minimum Spanning Tree) using Prim's algorithm
-    std::vector<bool> used(n, false);
-    used[0] = true;
-    std::vector<std::pair<int, int>> edges;
-    for (int k = 0; k < n - 1; ++k) {
-        double best = 1e300;
-        int u_best = -1, v_best = -1;
-        for (int u = 0; u < n; ++u) if (used[u]) {
-            for (int v = 0; v < n; ++v) if (!used[v] && d2[u * n + v] < best) {
-                best = d2[u * n + v];
-                u_best = u;
-                v_best = v;
-            }
-        }
-        if (v_best >= 0) {
-            edges.emplace_back(u_best, v_best);
-            used[v_best] = true;
-        }
-    }
-
-    // Add optional random connections
-    for (int i = 0; i < n; ++i)
-        for (int j = i + 1; j < n; ++j)
-            if (rng_vals[rng_index++ % rng_len] < extra_connection_prob)
-                edges.emplace_back(i, j);
-
-    // Draw synaptic links as directed axon-style tubes
-    for (auto& e : edges) {
-        auto& A = centers[e.first];
-        auto& B = centers[e.second];
-
-        int dz = B[0] - A[0], dy = B[1] - A[1], dx = B[2] - A[2];
-        double norm = std::sqrt(dx * dx + dy * dy + dz * dz) + 1e-6;
-        double ux = dx / norm, uy = dy / norm, uz = dz / norm;
-
-        draw_axon_tube(
-            labels, occ, nz, ny, nx,
-            A[0], A[1], A[2],
-            ux, uy, uz,
-            /*steps*/ dend_depth * 8,
-            /*radius*/ dend_radius,
-            rng_vals, rng_len,
-            rng_index,
+        // Draw the main axon
+        auto [za, ya, xa] = draw_axon_tube(
+            labels, occ,
+            nz, ny, nx,
+            zc, yc, xc,
+            dx0, dy0, dz0,
+            axon_steps,
+            axon_radius,
+            rng_vals, rng_len, rng_index,
             total_length,
-            /*jitter*/ 0.1,
-            /*bundle_dirs*/ nullptr,
-            /*bundle_strength*/ 0.0,
-            /*wall_label*/ synapse_label,
-            /*lumen_label*/ 0
+            jitter, persist,
+            /* no convergence */ nullptr,
+            0.0, 0.0,
+            /* wall_label */ 8,
+            /* lumen_label */ synapse_label
         );
 
-        rng_index += 64;
+        // Collateral branches
+        for (int b = 0; b < dend_branches; ++b) {
+            if (rng_vals[rng_index++] < extra_conn_prob) {
+                double bdx = rng_vals[rng_index++] - 0.5;
+                double bdy = rng_vals[rng_index++] - 0.5;
+                double bdz = rng_vals[rng_index++] - 0.5;
+                double mb  = std::sqrt(bdx*bdx + bdy*bdy + bdz*bdz) + 1e-6;
+                bdx /= mb; bdy /= mb; bdz /= mb;
+
+                draw_axon_tube(
+                    labels, occ,
+                    nz, ny, nx,
+                    za, ya, xa,
+                    bdx, bdy, bdz,
+                    axon_steps/2,
+                    axon_radius/2,
+                    rng_vals, rng_len, rng_index,
+                    total_length,
+                    jitter, persist,
+                    nullptr, 0.0, 0.0,
+                    /* wall_label */ 8,
+                    /* lumen_label */ synapse_label
+                );
+            }
+        }
+
+        // Stamp synapse label
+        if (za>=0 && za<nz && ya>=0 && ya<ny && xa>=0 && xa<nx) {
+            size_t idx = size_t(za)*ny*nx + size_t(ya)*nx + size_t(xa);
+            labels[idx] = synapse_label;
+        }
+    }
+}
+
+
+//──────────────────────────────────────────────────────────────────────────────
+void connect_glia_to_neurons(
+    uint8_t* labels,
+    int nz, int ny, int nx,
+    const std::vector<std::array<int,3>>& neuron_centers,
+    int contact_label,
+    int contact_radius
+) {
+    const int stride_y = nx;
+    const int stride_z = ny * nx;
+
+    for (auto& nc : neuron_centers) {
+        int zn = nc[0], yn = nc[1], xn = nc[2];
+        for (int dz = -contact_radius; dz <= contact_radius; ++dz) {
+            for (int dy = -contact_radius; dy <= contact_radius; ++dy) {
+                for (int dx = -contact_radius; dx <= contact_radius; ++dx) {
+                    int z = zn + dz, y = yn + dy, x = xn + dx;
+                    if (z < 0 || z >= nz || y < 0 || y >= ny || x < 0 || x >= nx)
+                        continue;
+                    auto idx = z*stride_z + y*stride_y + x;
+                    // assume glia processes are labeled GLIA_PROC_LABEL (8)
+                    if (labels[idx] == 8) {
+                        labels[idx] = contact_label;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -472,117 +496,108 @@ double add_neurons(
     int num_cells,
     const std::array<double, 2> &cell_radius_range,
     const std::array<double, 2> &axon_dia_range,
-    int max_depth
+    int max_depth,
+    std::vector<std::array<int,3>>& centers
 ) {
-    std::fill(occ, occ + nz * ny * nx, uint8_t(0));
+    // Clear occupancy
+    std::fill(occ, occ + nz*ny*nx, uint8_t(0));
     double total_length = 0.0;
 
+    // Voxel size average
     double dz = voxel_size[0], dy = voxel_size[1], dx = voxel_size[2];
     double px = (dz + dy + dx) / 3.0;
 
+    // RNG for placement and diameters
     std::mt19937_64 gen(std::random_device{}());
-    std::uniform_int_distribution<int> Dz(0, nz - 1), Dy(0, ny - 1), Dx(0, nx - 1);
-    std::uniform_real_distribution<double>
-        Dr_cell(cell_radius_range[0], cell_radius_range[1]),
-        Dr_axon(axon_dia_range[0], axon_dia_range[1]);
-    std::uniform_real_distribution<float> Dr(0.0f, 1.0f);
+    std::uniform_int_distribution<int> Uz(0, nz-1), Uy(0, ny-1), Ux(0, nx-1);
+    std::uniform_real_distribution<double> Ur_cell(cell_radius_range[0], cell_radius_range[1]);
+    std::uniform_real_distribution<double> Ur_axon(axon_dia_range[0], axon_dia_range[1]);
+    std::uniform_real_distribution<float> Urf(0.0f, 1.0f);
 
-    const int RNG_LEN = 1'000'000;
-    std::unique_ptr<float[]> rng_vals(new float[RNG_LEN]);
-    for (int i = 0; i < RNG_LEN; ++i) rng_vals[i] = Dr(gen);
-
+    // Pre-generate RNG buffer for axon
+    constexpr int RNG_LEN = 1'000'000;
+    auto rng_vals = std::make_unique<float[]>(RNG_LEN);
+    for (int i = 0; i < RNG_LEN; ++i) {
+        rng_vals[i] = Urf(gen);
+    }
     int rng_index = 0;
-    std::vector<std::array<int, 3>> centers;
-    std::vector<std::array<double, 3>> axon_dirs;
-    centers.reserve(num_cells);
+
+    // Labels
+    constexpr uint8_t SOMA_LABEL       = 5;
+    constexpr uint8_t NUCLEUS_LABEL    = 7;
+    constexpr uint8_t DEND_LABEL       = 7;
+    constexpr uint8_t AXON_WALL_LABEL  = 8;
+    constexpr uint8_t AXON_LUMEN_LABEL = 10;
+    const int AXON_STEPS = 5000;
 
     for (int i = 0; i < num_cells; ++i) {
-        int zc = Dz(gen), yc = Dy(gen), xc = Dx(gen);
+        // 1) Place soma & nucleus
+        int zc = Uz(gen), yc = Uy(gen), xc = Ux(gen);
         centers.push_back({zc, yc, xc});
 
-        int R_soma = std::max(4, int(std::round(Dr_cell(gen) / px)));
+        int R_soma = std::max(4, int(std::round(Ur_cell(gen) / px)));
         int R_nucl = std::max(1, int(R_soma * 0.3));
-        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_soma, 6, total_length);
-        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_nucl, 2, total_length);
+        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_soma, SOMA_LABEL, total_length);
+        carve_ball(labels, occ, nz, ny, nx, zc, yc, xc, R_nucl, NUCLEUS_LABEL, total_length);
 
-        int NUM_DENDRITES = std::clamp(int(R_soma * 0.5), 2, 6);
-        int dend_depth = std::clamp(int(R_soma * 0.4), 2, 6);
-        int dend_fanout = std::clamp(10 - R_soma / 2, 2, 6);
-        int R_dend = std::max(1, int(R_soma * 0.4));
-
-        for (int d = 0; d < NUM_DENDRITES; ++d) {
-            grow_dendrites_from(labels, occ, nz, ny, nx, zc, yc, xc, R_dend,
-                dend_depth, dend_fanout, rng_vals.get(), RNG_LEN, rng_index,
-                total_length, 7);
+        // 2) Grow dendrites
+        int num_dend = std::clamp(int(R_soma * 0.5), 2, 6);
+        int depth    = std::clamp(int(R_soma * 0.4), 2, 6);
+        int fanout   = std::clamp(10 - R_soma/2, 2, 6);
+        int R_dend   = std::max(1, int(R_soma * 0.4));
+        for (int d = 0; d < num_dend; ++d) {
+            grow_dendrites_from(
+                labels, occ, nz, ny, nx,
+                zc, yc, xc,
+                R_dend, depth, fanout,
+                rng_vals.get(), RNG_LEN, rng_index,
+                total_length, DEND_LABEL
+            );
             rng_index += 64;
         }
 
-        double axon_dia_um = Dr_axon(gen);
-        int R_axon = std::clamp(int(std::round(axon_dia_um / px / 2.0)), 1, 6);
+        // 3) Axon radius
+        double axon_dia = Ur_axon(gen);
+        int R_axon = std::clamp(int(std::round((axon_dia/px)/2.0)), 1, 6);
 
-        // Base direction: slightly perturbed dominant orientation (Y)
-        double dx0 = (Dr(gen) - 0.5) * 0.2;
-        double dy0 = 1.0 + (Dr(gen) - 0.5) * 0.2;
-        double dz0 = (Dr(gen) - 0.5) * 0.2;
+        // 4) Initial direction
+        double dx0 = (Urf(gen) - 0.5)*0.2;
+        double dy0 = 1.0 + (Urf(gen) - 0.5)*0.2;
+        double dz0 = (Urf(gen) - 0.5)*0.2;
+        double m0  = std::sqrt(dx0*dx0 + dy0*dy0 + dz0*dz0) + 1e-6;
+        dx0/=m0; dy0/=m0; dz0/=m0;
 
-        // Global bundling influence (weakened)
-        if (!axon_dirs.empty()) {
-            double avg_dx = 0, avg_dy = 0, avg_dz = 0;
-            for (auto &[dx, dy, dz] : axon_dirs) {
-                avg_dx += dx; avg_dy += dy; avg_dz += dz;
-            }
-            double n = axon_dirs.size();
-            avg_dx /= n; avg_dy /= n; avg_dz /= n;
-            dx0 += 0.2 * avg_dx; dy0 += 0.2 * avg_dy; dz0 += 0.2 * avg_dz;
-        }
+        // 5) Convergence targets
+        std::vector<std::array<double,3>> targets = {
+            {50.0,10.0,20.0},
+            {80.0,40.0,60.0}
+        };
+        double conv_rad = 30.0, conv_str = 1.0;
 
-        double norm = std::sqrt(dx0 * dx0 + dy0 * dy0 + dz0 * dz0) + 1e-6;
-        dx0 /= norm; dy0 /= norm; dz0 /= norm;
-        axon_dirs.push_back({dx0, dy0, dz0});
-
-        const int AXON_STEPS = 5000;
-        auto [za, ya, xa] = draw_axon_tube(
+        // 6) Grow axon
+        auto [zi, yi, xi] = draw_axon_tube(
             labels, occ, nz, ny, nx,
             zc, yc, xc,
             dx0, dy0, dz0,
-            AXON_STEPS,
-            R_axon,
-            rng_vals.get(), RNG_LEN,
-            rng_index,
+            AXON_STEPS, R_axon,
+            rng_vals.get(), RNG_LEN, rng_index,
             total_length,
-            0.3,                    // Brownian jitter
-            &axon_dirs,             // Existing axon directions (for bundling)
-            0.8,                    // Bundling strength
-            8,                      // Axon wall label
-            10                      // Collateral branch label
+            0.2, 0.8,
+            &targets, conv_rad, conv_str,
+            AXON_WALL_LABEL, AXON_LUMEN_LABEL
         );
-
         rng_index += 64;
 
+        // 7) Collateral dendrite at axon tip
         grow_dendrites_from(
             labels, occ, nz, ny, nx,
-            za, ya, xa,
-            R_dend,
-            max_depth,
-            2,
-            rng_vals.get(), RNG_LEN,
-            rng_index,
-            total_length,
-            7
+            zi, yi, xi,
+            R_dend, max_depth, 2,
+            rng_vals.get(), RNG_LEN, rng_index,
+            total_length, DEND_LABEL
         );
         rng_index += 64;
     }
-
-    connect_somas_with_synapses(
-        labels, occ, nz, ny, nx,
-        centers,
-        rng_vals.get(), RNG_LEN,
-        rng_index,
-        total_length,
-        2, 6, 2,
-        0.01f,
-        7
-    );
 
     return total_length;
 }
@@ -653,4 +668,73 @@ void add_glial(
 
         ++placed;
     }
+}
+
+
+double add_glial(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    int num_glia,
+    int glia_radius_min,
+    int glia_radius_max,
+    int dend_depth,
+    int dend_branches,
+    const float* rng_vals,
+    int rng_len,
+    int& rng_index,
+    double& total_length
+) {
+    // RNG for soma placement
+    std::mt19937_64 gen(std::random_device{}());
+    std::uniform_int_distribution<int> Uz(0, nz-1), Uy(0, ny-1), Ux(0, nx-1);
+    std::uniform_int_distribution<int> Ur(glia_radius_min, glia_radius_max);
+
+    constexpr uint8_t GLIA_LABEL      = 9;
+    constexpr uint8_t GLIA_PROC_LABEL = 8;
+
+    int placed = 0;
+    int max_attempts = num_glia * 30;
+
+    for (int attempt = 0; attempt < max_attempts && placed < num_glia; ++attempt) {
+        // 1) Random center + ellipsoid radii
+        int zc = Uz(gen), yc = Uy(gen), xc = Ux(gen);
+        int rz = Ur(gen), ry = Ur(gen), rx = Ur(gen);
+
+        // 2) Check occupancy
+        if (!can_place_ellipsoid(occ, nz, ny, nx, zc, yc, xc, rz, ry, rx))
+            continue;
+
+        // 3) Carve glial soma
+        carve_ellipsoid(
+            labels, occ, nz, ny, nx,
+            zc, yc, xc,
+            rz, ry, rx,
+            GLIA_LABEL,
+            total_length
+        );
+        ++placed;
+
+        // 4) Grow short processes
+        int num_procs = 3 + int(rng_vals[rng_index] * 3);
+        safe_advance_rng(rng_index, 1, rng_len);
+
+        int root_radius = std::max(1, int(0.3 * std::min({rz, ry, rx})));
+
+        for (int p = 0; p < num_procs; ++p) {
+            grow_dendrites_from(
+                labels, occ, nz, ny, nx,
+                zc, yc, xc,
+                root_radius,
+                dend_depth,
+                dend_branches,
+                rng_vals, rng_len, rng_index,
+                total_length,
+                GLIA_PROC_LABEL
+            );
+            safe_advance_rng(rng_index, 64, rng_len);
+        }
+    }
+
+    return total_length;
 }

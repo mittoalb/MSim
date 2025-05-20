@@ -12,7 +12,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 
-#local libs
+# local libs
 from logger import setup_custom_logger, log_exception
 import brain
 from utils import save_mzarr
@@ -56,16 +56,16 @@ def generate_brain(config_path="sim_config.json"):
             logger.info("Skipping macro-regions (macro_regions=0)")
 
         # ────────────── Vessels ──────────────
-        num_vessels             = params.get("num_vessels", 0)
-        vessel_radius_avg       = params["vessel_radius_avg"]
-        vessel_radius_jitter    = params.get("vessel_radius_jitter", 0.0)
-        max_depth               = params["max_depth"]
-        trunk_len               = params.get("vessel_trunk_len",       150)
-        jitter_interval         = params.get("vessel_jitter_interval", 15)
-        max_branches            = params.get("vessel_max_branches",    2)
-        branch_len              = params.get("vessel_branch_len",      trunk_len)
-        radius_decay            = params.get("vessel_radius_decay",    0.8)
-        seed                    = params["seed"]
+        num_vessels          = params.get("num_vessels", 0)
+        vessel_radius_avg    = params["vessel_radius_avg"]
+        vessel_radius_jitter = params.get("vessel_radius_jitter", 0.0)
+        max_depth            = params["max_depth"]
+        trunk_len            = params.get("vessel_trunk_len", 150)
+        jitter_interval      = params.get("vessel_jitter_interval", 15)
+        max_branches         = params.get("vessel_max_branches", 2)
+        branch_len           = params.get("vessel_branch_len", trunk_len)
+        radius_decay         = params.get("vessel_radius_decay", 0.8)
+        seed                 = params["seed"]
 
         if num_vessels > 0:
             logger.info(f"Adding {num_vessels} vessels with avg radius {vessel_radius_avg} ±{vessel_radius_jitter*100:.0f}%…")
@@ -90,7 +90,7 @@ def generate_brain(config_path="sim_config.json"):
         num_cells = params.get("num_cells", 0)
         if num_cells > 0:
             logger.info(f"Adding {num_cells} neurons…")
-            total_neuron_length = brain.add_neurons(
+            total_neuron_length, neuron_centers = brain.add_neurons(
                 labels, occupied,
                 tuple(params["voxel_size"]),
                 num_cells,
@@ -107,7 +107,6 @@ def generate_brain(config_path="sim_config.json"):
         if num_glia > 0:
             logger.info(f"Adding {num_glia} glial cells…")
             rng_vals = np.random.RandomState(seed + 1).rand(1_000_000).astype(np.float32)
-
             total_glia_length = brain.add_glial(
                 labels,
                 occupied,
@@ -119,12 +118,22 @@ def generate_brain(config_path="sim_config.json"):
                 rng_vals
             )
             logger.info(f"Total glial dendrite length: {total_glia_length:.1f} voxels")
+
+            # ────────── Connect Glia → Neurons ──────────
+            logger.info("Connecting glial processes to nearby neurons…")
+            brain.connect_glia_to_neurons(
+                labels,
+                neuron_centers,
+                contact_label   = params.get("glia_neuron_contact_label", 12),
+                contact_radius  = params.get("glia_neuron_contact_radius", 5)
+            )
+            logger.info("Done stamping glia–neuron contacts.")
         else:
             logger.info("Skipping glial cell placement (num_glia=0)")
 
-
-        # ──────────────     Smooth labels ──────────────
+        # ────────────── Smooth labels ──────────────
         labels = smooth_labels(labels, sigma=1.0)
+
         # ────────────── Save Multiscale Zarr ──────────────
         save_mzarr(
             data       = labels,
@@ -141,4 +150,3 @@ def generate_brain(config_path="sim_config.json"):
 
 if __name__ == "__main__":
     generate_brain()
-

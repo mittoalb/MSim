@@ -125,32 +125,83 @@ PYBIND11_MODULE(brain, m) {
     );
 
     //──────────────────────────────────────────────────────────────────────────
-    // add_neurons: place cells & connect with axons
+    m.def("connect_glia_to_neurons",
+        [](
+        py::array_t<uint8_t> labels,
+        std::vector<std::array<int,3>> neuron_centers,
+        int contact_label,
+        int contact_radius
+        ){
+        auto lb = labels.request();
+        uint8_t* ptr = static_cast<uint8_t*>(lb.ptr);
+        int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
+        connect_glia_to_neurons(ptr, nz, ny, nx,
+                                neuron_centers,
+                                contact_label,
+                                contact_radius);
+        },
+        py::arg("labels"),
+        py::arg("neuron_centers"),
+        py::arg("contact_label")  = 12,
+        py::arg("contact_radius") = 5
+    );
+
+
+    //──────────────────────────────────────────────────────────────────────────
     m.def("add_neurons",
-        [](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> labels,
-           py::array_t<uint8_t, py::array::c_style | py::array::forcecast> occ,
-           std::array<double,3> voxel_size,
-           int num_cells,
-           std::array<double,2> cell_radius_range,
-           std::array<double,2> axon_dia_range,
-           int max_depth)
-        {
+        [](
+            py::array_t<uint8_t, py::array::c_style|py::array::forcecast> labels,
+            py::array_t<uint8_t, py::array::c_style|py::array::forcecast> occ,
+            std::tuple<double,double,double> voxel_size,
+            int num_cells,
+            std::tuple<double,double> cell_radius_range,
+            std::tuple<double,double> axon_dia_range,
+            int max_depth
+        ) {
             auto lb = labels.request(), ob = occ.request();
             if (lb.ndim != 3 || ob.ndim != 3)
-                throw std::runtime_error("labels and occ must be 3-D arrays");
+                throw std::runtime_error("labels and occ must be 3-D");
+            uint8_t* lbp = static_cast<uint8_t*>(lb.ptr);
+            uint8_t* obp = static_cast<uint8_t*>(ob.ptr);
             int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
-            return add_neurons(
-                static_cast<uint8_t*>(lb.ptr),
-                static_cast<uint8_t*>(ob.ptr),
+
+            std::array<double,3> vs = {
+                std::get<0>(voxel_size),
+                std::get<1>(voxel_size),
+                std::get<2>(voxel_size)
+            };
+            std::array<double,2> cr = {
+                std::get<0>(cell_radius_range),
+                std::get<1>(cell_radius_range)
+            };
+            std::array<double,2> ar = {
+                std::get<0>(axon_dia_range),
+                std::get<1>(axon_dia_range)
+            };
+
+            // call C++ with the new centers arg
+            std::vector<std::array<int,3>> centers;
+            double total_length = add_neurons(
+                lbp, obp,
                 nz, ny, nx,
-                voxel_size,
+                vs,
                 num_cells,
-                cell_radius_range,
-                axon_dia_range,
-                max_depth
+                cr,
+                ar,
+                max_depth,
+                centers       // ← pass the vector
             );
+
+            // build Python list of tuples
+            py::list py_centers;
+            for (auto &c : centers) {
+                py_centers.append(py::make_tuple(c[0], c[1], c[2]));
+            }
+
+            return py::make_tuple(total_length, py_centers);
         },
-        py::arg("labels"),   py::arg("occ"),
+        py::arg("labels"),
+        py::arg("occ"),
         py::arg("voxel_size"),
         py::arg("num_cells"),
         py::arg("cell_radius_range"),
@@ -158,40 +209,47 @@ PYBIND11_MODULE(brain, m) {
         py::arg("max_depth")
     );
 
-
     //──────────────────────────────────────────────────────────────────────────
-    m.def("add_glial",
-        [](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> labels,
-        py::array_t<uint8_t, py::array::c_style | py::array::forcecast> occ,
+        m.def("add_glial",
+        [](
+        py::array_t<uint8_t> labels,
+        py::array_t<uint8_t> occ,
         int num_glia,
         int glia_radius_min,
         int glia_radius_max,
         int dend_depth,
         int dend_branches,
-        py::array_t<float, py::array::c_style | py::array::forcecast> rng_vals)
-        {
-            auto lb = labels.request();
-            auto ob = occ.request();
-            auto rb = rng_vals.request();
-            if (lb.ndim != 3 || ob.ndim != 3 || rb.ndim != 1)
-                throw std::runtime_error("labels and occ must be 3-D, rng_vals must be 1-D");
-            int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
+        py::array_t<float, py::array::c_style|py::array::forcecast> rng_vals
+        ) {
+        // Unpack labels/occ dims
+        auto lb = labels.request(), ob = occ.request();
+        uint8_t* lbp = static_cast<uint8_t*>(lb.ptr);
+        uint8_t* obp = static_cast<uint8_t*>(ob.ptr);
+        int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
 
-            double total_length = 0.0;
-            add_glial(
-                static_cast<uint8_t*>(lb.ptr),
-                static_cast<uint8_t*>(ob.ptr),
-                nz, ny, nx,
-                num_glia,
-                glia_radius_min,
-                glia_radius_max,
-                dend_depth,
-                dend_branches,
-                static_cast<const float*>(rb.ptr),
-                rb.size,
-                total_length
-            );
-            return total_length;
+        // Unpack RNG buffer
+        auto rb = rng_vals.request();
+        const float* rptr = static_cast<const float*>(rb.ptr);
+        int rng_len = rb.size;
+
+        int rng_index = 0;
+        double total_length = 0.0;
+
+        // Call C++ implementation
+        double out_length = add_glial(
+            lbp, obp,
+            nz, ny, nx,
+            num_glia,
+            glia_radius_min,
+            glia_radius_max,
+            dend_depth,
+            dend_branches,
+            rptr, rng_len,
+            rng_index,
+            total_length
+        );
+
+        return out_length;
         },
         py::arg("labels"),
         py::arg("occ"),
@@ -203,53 +261,66 @@ PYBIND11_MODULE(brain, m) {
         py::arg("rng_vals")
     );
 
+
     //──────────────────────────────────────────────────────────────────────────────
-    // connect_somas_with_synapses: MST + optional random dendrites between somas
-    m.def("connect_somas_with_synapses",
+        m.def("connect_somas_with_synapses",
         [](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> labels,
         py::array_t<uint8_t, py::array::c_style | py::array::forcecast> occ,
         std::vector<std::array<int, 3>> centers,
-        py::array_t<float, py::array::c_style | py::array::forcecast> rng_vals,
+        py::array_t<float,   py::array::c_style | py::array::forcecast> rng_vals,
         int rng_len,
-        int dend_radius,
-        int dend_depth,
-        int dend_branches,
-        float extra_connection_prob,
-        uint8_t synapse_label)
-        {
+        int axon_radius,           // tube radius
+        int axon_steps,            // number of segments
+        float jitter       = 0.3f, // σ: random‐perturb strength
+        float persist      = 0.9f, // α: direction‐persistence
+        int dend_branches  = 2,    // how many side‐branches to attempt
+        float extra_connection_prob = 0.01f, // chance per branch
+        uint8_t wall_label = 8,
+        uint8_t synapse_label = 7
+        ) {
+            // Request buffers
             auto lb = labels.request(), ob = occ.request(), rb = rng_vals.request();
             if (lb.ndim != 3 || ob.ndim != 3 || rb.ndim != 1)
-                throw std::runtime_error("labels, occ must be 3-D; rng_vals must be 1-D");
-            int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
+                throw std::runtime_error("labels/occ must be 3-D; rng_vals must be 1-D");
 
+            int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
             double total_length = 0.0;
             int rng_index = 0;
+
+            // Call the C++ implementation
             connect_somas_with_synapses(
                 static_cast<uint8_t*>(lb.ptr),
                 static_cast<uint8_t*>(ob.ptr),
                 nz, ny, nx,
                 centers,
-                static_cast<const float*>(rb.ptr), rng_len,
-                rng_index,
+                static_cast<const float*>(rb.ptr), rng_len, rng_index,
                 total_length,
-                dend_radius,
-                dend_depth,
-                dend_branches,
-                extra_connection_prob,
-                synapse_label
+                axon_steps,           // 11: number of segments
+                axon_radius,          // 12: tube radius
+                jitter,               // 13: σ
+                persist,              // 14: α
+                dend_branches,        // 15: collateral branches
+                extra_connection_prob,// 16: chance per branch
+                synapse_label         // 17: label at endpoint
             );
+
             return total_length;
         },
+        // Arg names and defaults for Python
         py::arg("labels"),
         py::arg("occ"),
         py::arg("centers"),
         py::arg("rng_vals"),
         py::arg("rng_len"),
-        py::arg("dend_radius") = 2,
-        py::arg("dend_depth") = 5,
+        py::arg("axon_radius") = 2,
+        py::arg("axon_steps")  = 5,
+        py::arg("jitter")      = 0.3f,
+        py::arg("persist")     = 0.9f,
         py::arg("dend_branches") = 2,
         py::arg("extra_connection_prob") = 0.01f,
+        py::arg("wall_label")  = 8,
         py::arg("synapse_label") = 7
     );
+
 }
 

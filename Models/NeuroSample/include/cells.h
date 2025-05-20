@@ -68,9 +68,10 @@ std::array<int, 3> draw_axon_tube(
     double& total_length,
     double jitter,
     const std::vector<std::array<double, 3>>* bundle_dirs = nullptr,
-    double bundle_strength = 0.0
+    double bundle_strength = 0.0,
+    uint8_t wall_label = 8,
+    uint8_t collateral_label = 10
 );
-
 
 void add_glial(
     uint8_t* labels,
@@ -85,4 +86,23 @@ void add_glial(
     int rng_len,
     double& total_length
 );
+
+// Connect neuron soma centers with synaptic dendrites (MST + random links)
+void connect_somas_with_synapses(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    const std::vector<std::array<int, 3>>& centers,
+    const float* rng_vals,
+    int rng_len,
+    int& rng_index,
+    double& total_length,
+    int dend_radius = 2,
+    int dend_depth = 5,
+    int dend_branches = 2,
+    float extra_connection_prob = 0.01f,
+    uint8_t synapse_label = 7
+);
+
+
 #endif // CELLS_H

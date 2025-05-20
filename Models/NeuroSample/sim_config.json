@@ -6,11 +6,11 @@
     "nx":                     1000,
     "seed":                   22,
 
-    "num_cells":              5000,
+    "num_cells":              1000,
     "cell_radius_range":      [4, 20],
     "axon_dia_range":         [2, 6],
 
-    "num_glia":               5000,
+    "num_glia":               0,
     "glia_radius_min":        3,
     "glia_radius_max":        6,
     "glia_dend_depth":        2,
@@ -23,7 +23,7 @@
     "macro_regions":          0,
     "region_smoothness":      5,
 
-    "num_vessels":            30,
+    "num_vessels":            0,
     "max_depth":              500,
     "vessel_radius_avg":      10,
     "vessel_radius_jitter":   0.9,

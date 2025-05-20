@@ -203,5 +203,53 @@ PYBIND11_MODULE(brain, m) {
         py::arg("rng_vals")
     );
 
+    //──────────────────────────────────────────────────────────────────────────────
+    // connect_somas_with_synapses: MST + optional random dendrites between somas
+    m.def("connect_somas_with_synapses",
+        [](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> labels,
+        py::array_t<uint8_t, py::array::c_style | py::array::forcecast> occ,
+        std::vector<std::array<int, 3>> centers,
+        py::array_t<float, py::array::c_style | py::array::forcecast> rng_vals,
+        int rng_len,
+        int dend_radius,
+        int dend_depth,
+        int dend_branches,
+        float extra_connection_prob,
+        uint8_t synapse_label)
+        {
+            auto lb = labels.request(), ob = occ.request(), rb = rng_vals.request();
+            if (lb.ndim != 3 || ob.ndim != 3 || rb.ndim != 1)
+                throw std::runtime_error("labels, occ must be 3-D; rng_vals must be 1-D");
+            int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
+
+            double total_length = 0.0;
+            int rng_index = 0;
+            connect_somas_with_synapses(
+                static_cast<uint8_t*>(lb.ptr),
+                static_cast<uint8_t*>(ob.ptr),
+                nz, ny, nx,
+                centers,
+                static_cast<const float*>(rb.ptr), rng_len,
+                rng_index,
+                total_length,
+                dend_radius,
+                dend_depth,
+                dend_branches,
+                extra_connection_prob,
+                synapse_label
+            );
+            return total_length;
+        },
+        py::arg("labels"),
+        py::arg("occ"),
+        py::arg("centers"),
+        py::arg("rng_vals"),
+        py::arg("rng_len"),
+        py::arg("dend_radius") = 2,
+        py::arg("dend_depth") = 5,
+        py::arg("dend_branches") = 2,
+        py::arg("extra_connection_prob") = 0.01f,
+        py::arg("synapse_label") = 7
+    );
 }
 

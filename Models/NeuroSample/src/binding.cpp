@@ -9,54 +9,6 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(brain, m) {
     m.doc() = "High-performance C++ backend for brain geometry generation";
-
-    //──────────────────────────────────────────────────────────────────────────
-    // draw_vessels: carve one vascular tree from a root
-    m.def("draw_vessels",
-        [](py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask,
-           py::array_t<uint8_t, py::array::c_style | py::array::forcecast> occ,
-           int nz, int ny, int nx,
-           int root_z, int root_y, int root_x,
-           int max_depth,
-           int base_radius,
-           py::array_t<float, py::array::c_style | py::array::forcecast> rng_vals,
-           int rng_len,
-           double init_dx, double init_dy, double init_dz,
-           int TRUNK_LEN, int JITTER_INTERVAL,
-           int MAX_BRANCHES_BASE, int MAX_BRANCH_LEN,
-           double RADIUS_DECAY)
-        {
-            auto mb = mask.request();
-            auto ob = occ.request();
-            auto rb = rng_vals.request();
-            if (mb.ndim != 3 || ob.ndim != 3 || rb.ndim != 1)
-                throw std::runtime_error("mask, occ must be 3-D and rng_vals 1-D");
-
-            return draw_vessels(
-                static_cast<uint8_t*>(mb.ptr),
-                static_cast<uint8_t*>(ob.ptr),
-                nz, ny, nx,
-                root_z, root_y, root_x,
-                max_depth,
-                base_radius,
-                static_cast<const float*>(rb.ptr), rng_len,
-                init_dx, init_dy, init_dz,
-                TRUNK_LEN, JITTER_INTERVAL,
-                MAX_BRANCHES_BASE, MAX_BRANCH_LEN,
-                RADIUS_DECAY
-            );
-        },
-        py::arg("mask"),           py::arg("occ"),
-        py::arg("nz"),             py::arg("ny"),             py::arg("nx"),
-        py::arg("root_z"),         py::arg("root_y"),         py::arg("root_x"),
-        py::arg("max_depth"),      py::arg("base_radius"),
-        py::arg("rng_vals"),       py::arg("rng_len"),
-        py::arg("init_dx"),        py::arg("init_dy"),        py::arg("init_dz"),
-        py::arg("TRUNK_LEN"),      py::arg("JITTER_INTERVAL"),
-        py::arg("MAX_BRANCHES_BASE"), py::arg("MAX_BRANCH_LEN"),
-        py::arg("RADIUS_DECAY")
-    );
-
     //──────────────────────────────────────────────────────────────────────────
     // add_vessels: plant many roots into labels[] with per-vessel radius jitter
     m.def("add_vessels",
@@ -320,6 +272,64 @@ PYBIND11_MODULE(brain, m) {
         py::arg("extra_connection_prob") = 0.01f,
         py::arg("wall_label")  = 8,
         py::arg("synapse_label") = 7
+    );
+
+    m.def("add_endothelial_cells_direct",
+    [](py::array_t<uint8_t> labels,
+       py::array_t<uint8_t> occ,
+       uint8_t vessel_wall_label,
+       uint8_t cell_label,
+       uint8_t nucleus_label,
+       double max_L = 5.0,
+       double max_R = 2.0,
+       int seed = 42
+    ){
+      auto lb = labels.request(), ob = occ.request();
+      int nz = lb.shape[0], ny = lb.shape[1], nx = lb.shape[2];
+      auto ptrL = (uint8_t*)lb.ptr;
+      auto ptrO = (uint8_t*)ob.ptr;
+      return add_endothelial_cells_direct(
+        ptrL, ptrO, nz,ny,nx,
+        vessel_wall_label, cell_label, nucleus_label,
+        max_L, max_R, seed
+      );
+    },
+    py::arg("labels"), py::arg("occ"),
+    py::arg("vessel_wall_label"),
+    py::arg("cell_label"), py::arg("nucleus_label"),
+    py::arg("max_cell_length")=5.0,
+    py::arg("max_cell_radius")=2.0,
+    py::arg("seed")=42
+    );
+
+    m.def("add_schwann_cells",
+        [](py::array_t<uint8_t> labels,
+        py::array_t<uint8_t> occ,
+        uint8_t axon_label,
+        uint8_t schwann_label,
+        bool myelinated,
+        double radius,
+        double thickness) {
+
+            auto lb = labels.request();
+            auto ob = occ.request();
+
+            return add_schwann_cells(
+                static_cast<uint8_t*>(lb.ptr),
+                static_cast<uint8_t*>(ob.ptr),
+                lb.shape[0], lb.shape[1], lb.shape[2],
+                axon_label, schwann_label,
+                myelinated,
+                radius, thickness
+            );
+        },
+        py::arg("labels"),
+        py::arg("occ"),
+        py::arg("axon_label"),
+        py::arg("schwann_label"),
+        py::arg("myelinated") = true,
+        py::arg("radius") = 4.0,
+        py::arg("thickness") = 1.5
     );
 
 }

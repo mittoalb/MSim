@@ -191,4 +191,143 @@ inline void carve_cylinder_segment(
         }
     }
 }
+
+/// Carve an oriented ellipsoid into labels/occ,
+/// centered at (cz,cy,cx), with its major axis along `dir`
+/// of half‐length `half_length`, and minor axes of radius `radius`.
+/// Stamps `label` in all voxels inside the ellipsoid and marks occ.
+/// `total_length` is just an accumulator (you can ignore it here).
+void carve_oriented_ellipsoid(
+    uint8_t* labels, uint8_t* occ,
+    int nz,int ny,int nx,
+    double cz,double cy,double cx,
+    double dz,double dy,double dx,
+    double half_len,
+    double radius,
+    uint8_t label,
+    double& total_length
+);
+
+// Then the half-ellipsoid wrapper must call that overload:
+inline void carve_half_ellipsoid(
+    uint8_t* labels, uint8_t* occ,
+    int nz, int ny, int nx,
+    int zc, int yc, int xc,
+    double /*dx*/, double /*dy*/, double /*dz*/,
+    double length,
+    double radius,
+    uint8_t label,
+    double& total_length
+) {
+    // round to integer radii
+    int Rz = int(std::round(length));
+    int Ry = int(std::round(radius));
+    int Rx = int(std::round(radius));
+    carve_ellipsoid(
+        labels, occ,
+        nz, ny, nx,
+        zc, yc, xc,
+        Rz, Ry, Rx,
+        label,
+        total_length
+    );
+}
+
+/// Carves a semi-cylindrical cell: a half-cylinder of length `half_len*2`
+/// whose flat face lies against the wall, and rounded face of radius `radius`
+/// points into the lumen.  Oriented along (dz,dy,dx).
+void carve_oriented_semi_cylinder(
+    uint8_t* labels, uint8_t* occ,
+    int nz,int ny,int nx,
+    double cz,double cy,double cx,
+    double dz,double dy,double dx,
+    double half_len,
+    double radius,
+    uint8_t label,
+    double& total_length
+);
+
+/// Build an orthonormal basis {n, v, w} given n=(dz,dy,dx)
+void make_basis(
+    double dz, double dy, double dx,
+    double &vx, double &vy, double &vz,
+    double &wx, double &wy, double &wz
+);
+
+
+void carve_oriented_cylinder(
+    uint8_t* labels, uint8_t* occ,
+    int nz, int ny, int nx,
+    double cz, double cy, double cx,
+    double dz, double dy, double dx,
+    double half_len,
+    double radius,
+    uint8_t label,
+    double &total_length
+);
+
+// simple 3D‐vector
+struct Vec3 {
+    double z, y, x;
+    Vec3 operator- (const Vec3&o) const { return {z-o.z, y-o.y, x-o.x}; }
+    Vec3 operator+ (const Vec3&o) const { return {z+o.z, y+o.y, x+o.x}; }
+    Vec3 operator*(double s)    const { return {z*s, y*s, x*s}; }
+    double dot(const Vec3&o)    const { return z*o.z + y*o.y + x*o.x; }
+    double norm()               const { return std::sqrt(dot(*this)); }
+    Vec3 normalized() const {
+      double n = norm() + 1e-9;
+      return {z/n, y/n, x/n};
+    }
+    Vec3 cross(const Vec3&o) const {
+      return { y*o.x - x*o.y,
+               x*o.z - z*o.x,
+               z*o.y - y*o.z };
+    }
+};
+
+// forward‐declare the new functions:
+bool carve_cell_on_wall(
+    uint8_t* labels, uint8_t* occ,
+    int nz,int ny,int nx,
+    int z,int y,int x,
+    const Vec3& normal, const Vec3& tangent,
+    double full_length, double radius,
+    uint8_t cell_label
+);
+
+int add_endothelial_cells_direct(
+    uint8_t* labels, uint8_t* occ,
+    int nz,int ny,int nx,
+    uint8_t vessel_val,
+    double cell_diameter,
+    uint8_t cell_label
+);
+
+// carve a semi-cylindrical wedge oriented along the vessel tangent
+// center at (cz,cy,cx), axis direction (dz,dy,dx) (unit length),
+// length L, radius R, stamp label, accumulate into total_length
+void carve_semi_cylinder_wedge(
+    uint8_t* labels, uint8_t* /*occ*/,
+    int nz,int ny,int nx,
+    double cz,double cy,double cx,
+    double dz,double dy,double dx,
+    double L, double R,
+    uint8_t label,
+    double& total_length
+);
+
+// Carve a hollow ellipsoid into `labels`, aligned to axes
+void carve_hollow_ellipsoid(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    int cz, int cy, int cx,
+    double rz, double ry, double rx,
+    double outer_radius,
+    double thickness,
+    uint8_t label,
+    double& carved_len
+);
+
+
 #endif // GEOMETRY_H

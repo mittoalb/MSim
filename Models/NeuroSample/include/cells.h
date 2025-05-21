@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <array>
 #include <vector>
+#include "labels.h"
 
 // build a 1-D Gaussian kernel
 std::vector<double> gaussian_kernel(int radius, double sigma);
@@ -119,4 +120,31 @@ void connect_glia_to_neurons(
     int contact_label = 12,
     int contact_radius = 5
 );
+
+
+/// Place endothelial “cells” (semi-cylindrical wedges) at each vessel-wall voxel.
+/// Returns the total number of cells placed.
+int add_endothelial_cells_direct(
+    uint8_t* labels,
+    uint8_t* occ,
+    int nz, int ny, int nx,
+    uint8_t vessel_wall_label,
+    uint8_t cell_label,
+    uint8_t nucleus_label,
+    double max_cell_length,     // along the vessel tangent
+    double max_cell_radius,     // thickness sticking into wall
+    int   seed                  // RNG seed
+);
+
+int add_schwann_cells(
+    uint8_t* labels,
+    uint8_t* occ,
+    int      nz, int ny, int nx,
+    uint8_t  axon_label,
+    uint8_t  schwann_label,
+    bool     myelinated,
+    double   radius_scale,
+    double   thickness
+);
+
 #endif // CELLS_H

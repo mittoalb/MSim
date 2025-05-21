@@ -19,10 +19,12 @@ from utils import save_mzarr
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constants
-CELL_VAL    = 5
-NUCLEUS_VAL = 7
-AXON_VAL    = 8
-VESSEL_VAL  = 5
+CELL_VAL       = 5
+NUCLEUS_VAL    = 20
+AXON_VAL       = 8
+VESSEL_VAL     = 7
+ENDO_CELL_VAL  = 50   # endothelial cell body
+ENDO_NUC_VAL   = 100   # endothelial nucleus
 
 # ─────────────────────────────────────────────────────────────────────────────
 def smooth_labels(labels: np.ndarray, sigma=1.0) -> np.ndarray:
@@ -39,7 +41,7 @@ def generate_brain(config_path="sim_config.json"):
         params = cfg["generate_brain"]
         lookup = cfg["materials"]
 
-        # Allocate the label volume and an occupancy mask (uint8!)
+        # Allocate volumes
         dims     = (params["n_slices"], params["ny"], params["nx"])
         labels   = np.zeros(dims, dtype=np.uint8)
         occupied = np.zeros(dims, dtype=np.uint8)
@@ -47,10 +49,8 @@ def generate_brain(config_path="sim_config.json"):
         # ────────────── Macro‐regions ──────────────
         mr = params.get("macro_regions", 0)
         if mr > 0:
-            brain.add_macroregions(
-                labels, occupied,
-                mr, params["region_smoothness"]
-            )
+            brain.add_macroregions(labels, occupied,
+                                   mr, params["region_smoothness"])
             logger.info(f"Applied {mr} macro regions.")
         else:
             logger.info("Skipping macro-regions (macro_regions=0)")
@@ -68,7 +68,8 @@ def generate_brain(config_path="sim_config.json"):
         seed                 = params["seed"]
 
         if num_vessels > 0:
-            logger.info(f"Adding {num_vessels} vessels with avg radius {vessel_radius_avg} ±{vessel_radius_jitter*100:.0f}%…")
+            logger.info(f"Adding {num_vessels} vessels with avg radius "
+                        f"{vessel_radius_avg} ±{vessel_radius_jitter*100:.0f}%…")
             total_vessel_length = brain.add_vessels(
                 labels,
                 num_vessels,
@@ -82,7 +83,20 @@ def generate_brain(config_path="sim_config.json"):
                 radius_decay,
                 seed
             )
-            logger.info(f"Total vessel center-line length: {total_vessel_length:.1f} voxels")
+            logger.info(f"Total vessel center-line length: "
+                        f"{total_vessel_length:.1f} voxels")
+
+            logger.info("Tiling endothelial cells along vessels…")
+            num = brain.add_endothelial_cells_direct(
+                labels, occupied,
+                vessel_wall_label=VESSEL_VAL,
+                cell_label=12,
+                nucleus_label=13,
+                max_cell_length=6.0,
+                max_cell_radius=2.5,
+                seed=12345
+            )
+            logger.info(f"Placed {num} endothelial cells.")
         else:
             logger.info("Skipping vessel growth (num_vessels=0)")
 
@@ -102,14 +116,30 @@ def generate_brain(config_path="sim_config.json"):
         else:
             logger.info("Skipping neuron placement (num_cells=0)")
 
+
+        # ────────────── Schwann Cells (after neurons) ──────────────
+        if params.get("enable_schwann", True):
+            logger.info("Adding Schwann cells…")
+            n_schwann = brain.add_schwann_cells(
+                labels,
+                occupied,
+                params.get("axon_label", 8),
+                params.get("schwann_label", 15),
+                params.get("myelinated", True),
+                params.get("schwann_radius", 2.0),
+                params.get("schwann_length", 8.0)
+            )
+            logger.info(f"Placed {n_schwann} Schwann cells.")
+        else:
+            logger.info("Skipping Schwann cell generation.")
         # ────────────── Glial Cells ──────────────
         num_glia = params.get("num_glia", 0)
         if num_glia > 0:
             logger.info(f"Adding {num_glia} glial cells…")
-            rng_vals = np.random.RandomState(seed + 1).rand(1_000_000).astype(np.float32)
+            rng_vals = np.random.RandomState(seed + 1)\
+                             .rand(1_000_000).astype(np.float32)
             total_glia_length = brain.add_glial(
-                labels,
-                occupied,
+                labels, occupied,
                 num_glia,
                 params["glia_radius_min"],
                 params["glia_radius_max"],
@@ -117,9 +147,10 @@ def generate_brain(config_path="sim_config.json"):
                 params["glia_dend_branches"],
                 rng_vals
             )
-            logger.info(f"Total glial dendrite length: {total_glia_length:.1f} voxels")
+            logger.info(f"Total glial dendrite length: "
+                        f"{total_glia_length:.1f} voxels")
 
-            # ────────── Connect Glia → Neurons ──────────
+            # ──────── Connect Glia → Neurons ────────
             logger.info("Connecting glial processes to nearby neurons…")
             brain.connect_glia_to_neurons(
                 labels,

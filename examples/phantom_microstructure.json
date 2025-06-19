@@ -1,0 +1,38 @@
+{
+  "voxel_size": [
+    0.2,
+    0.2,
+    0.2
+  ],
+  "lookup": {
+    "0": {
+      "composition": {},
+      "density": 0.0
+    },
+    "1": {
+      "composition": {
+        "C": 2,
+        "H": 4
+      },
+      "density": 1.2
+    },
+    "2": {
+      "composition": {
+        "C": 1
+      },
+      "density": 1.8
+    },
+    "3": {
+      "composition": {
+        "Au": 1
+      },
+      "density": 19.3
+    },
+    "4": {
+      "composition": {
+        "Si": 1
+      },
+      "density": 2.33
+    }
+  }
+}

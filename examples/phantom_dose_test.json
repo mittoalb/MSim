@@ -1,0 +1,39 @@
+{
+  "voxel_size": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "lookup": {
+    "0": {
+      "composition": {
+        "N": 0.78,
+        "O": 0.21,
+        "Ar": 0.01
+      },
+      "density": 0.00129
+    },
+    "1": {
+      "composition": {
+        "H": 2,
+        "O": 1
+      },
+      "density": 1.0
+    },
+    "2": {
+      "composition": {
+        "Ca": 10,
+        "P": 6,
+        "O": 26,
+        "H": 2
+      },
+      "density": 1.92
+    },
+    "3": {
+      "composition": {
+        "Ti": 1
+      },
+      "density": 4.51
+    }
+  }
+}

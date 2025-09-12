@@ -5,7 +5,7 @@ Enhanced X-ray simulation example with photon statistics and dose calculation.
 
 import numpy as np
 import json
-from msim.simulator import XRayScanner, quick_tomography, quick_laminography, analyze_dose_only
+from msim.simulator import XRayScanner, quick_tomography, analyze_dose_only
 
 def create_enhanced_config():
     """Create configuration with photon statistics and dose parameters."""

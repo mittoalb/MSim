@@ -14,6 +14,14 @@ A GPU-accelerated X-ray simulation package for tomography and laminography with 
 
 ## Installation
 
+Create a conda environment
+
+```bash
+conda create -n MSIM python=3.13 cupy z5py
+```
+
+
+
 ### Requirements
 
 - Python ≥ 3.9
@@ -23,7 +31,7 @@ A GPU-accelerated X-ray simulation package for tomography and laminography with 
 ### Dependencies
 
 ```bash
-pip install cupy-cuda12x numpy scipy h5py z5py xraylib
+pip install numpy scipy z5py xraylib
 ```
 
 ### Install from source

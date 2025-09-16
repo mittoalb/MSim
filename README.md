@@ -41,6 +41,21 @@ git clone <repository-url>
 cd msim
 pip install -e .
 ```
+### Compiling the cuda code
+
+This will create the required cuda libraries.
+
+```bash
+cd MSim/utils
+./compile.sh
+```
+
+You may need to export the path in your environment:
+
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/your/msim/path/msim/cuda
+```
+
 
 ## Quick Start
 

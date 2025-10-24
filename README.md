@@ -1,12 +1,13 @@
 # MSim - Modular X-ray Simulation Toolkit
 
-A GPU-accelerated X-ray simulation package for tomography and laminography with realistic photon statistics and dose calculation.
+A GPU-accelerated X-ray simulation package for tomography and laminography with realistic photon statistics, dose calculation, and real-time streaming.
 
 ## Features
 
 - **GPU-accelerated wave propagation** using CuPy for high-performance simulation
 - **Multi-physics modeling** including phase contrast, absorption, and coherent scattering
 - **Tomography and laminography** simulation with arbitrary tilt angles
+- **Real-time PV streaming** to EPICS viewers (ImageJ, CS-Studio, etc.)
 - **Realistic detector response** with photon counting statistics and noise
 - **Radiation dose calculation** with beam attenuation modeling
 - **Multi-material phantoms** with accurate X-ray properties from XRayLib
@@ -17,21 +18,20 @@ A GPU-accelerated X-ray simulation package for tomography and laminography with 
 Create a conda environment
 
 ```bash
-conda create -n MSIM python=3.13 cupy z5py
+conda create -n MSIM python=3.13 cupy z5py pvaccess
 ```
-
-
 
 ### Requirements
 
 - Python ≥ 3.9
 - CUDA-compatible GPU
 - CuPy (CUDA toolkit)
+- PVAccess (for streaming, optional)
 
 ### Dependencies
 
 ```bash
-pip install numpy scipy z5py xraylib
+pip install numpy scipy z5py xraylib pvaccess
 ```
 
 ### Install from source
@@ -41,9 +41,10 @@ git clone <repository-url>
 cd msim
 pip install -e .
 ```
-### Compiling the cuda code
 
-This will create the required cuda libraries.
+### Compiling the CUDA code
+
+This will create the required CUDA libraries.
 
 ```bash
 cd MSim/utils
@@ -55,7 +56,6 @@ You may need to export the path in your environment:
 ```bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/your/msim/path/msim/cuda
 ```
-
 
 ## Quick Start
 
@@ -85,7 +85,7 @@ python generate_phantom.py bone
 ### 3. Run simulation
 
 ```python
-from msim.interface import quick_tomography, quick_laminography
+from msim.simulator import quick_tomography, quick_laminography
 
 # Tomography scan
 projections, dose_stats = quick_tomography(
@@ -105,12 +105,116 @@ projections, dose_stats = quick_laminography(
 )
 ```
 
+## Real-Time PV Streaming
+
+MSim can stream projections to EPICS PVAccess viewers as they are computed, enabling real-time monitoring and feedback.
+
+### Viewer Setup
+
+**ImageJ:**
+1. Install EPICS AD Viewer plugin
+2. Plugins → EPICS → EPICS AD Viewer
+3. Connect to PV name (e.g., `SIM:TOMO`)
+
+**CS-Studio:**
+1. Add Image widget
+2. Set PV name to your stream
+3. Configure color mapping
+
+**Command line:**
+```bash
+# Monitor PV updates
+pvget -m SIM:TOMO
+
+# List active PVs
+pvlist
+```
+
+### Basic Streaming Example
+
+```python
+from msim.geometry import simulate_projection_series
+import numpy as np
+
+# Your phantom data
+volume = ...  # Load your volume
+lookup = ...  # Material lookup
+config = {...}  # Simulation config
+
+# Stream to PV as projections are computed
+angles = np.linspace(0, 180, 90)
+projections = simulate_projection_series(
+    volume, lookup, voxel_size,
+    angles_deg=angles,
+    tilt_deg=0,
+    config=config,
+    stream_pv="SIM:TOMO"  # Stream to this PV
+)
+
+# Keep server alive for viewing
+from msim.geometry import keep_streaming_alive
+keep_streaming_alive()  # Press Ctrl+C to stop
+```
+
+### Streaming with XRayScanner
+
+```python
+from msim.simulator import XRayScanner
+
+scanner = XRayScanner("config.json")
+scanner.load_volume("phantom.zarr", "phantom.json")
+
+# Note: Streaming requires using simulate_projection_series directly
+from msim.geometry import simulate_projection_series
+
+projections = simulate_projection_series(
+    scanner.volume, scanner.lookup, scanner.voxel_size,
+    angles_deg=np.linspace(0, 180, 90),
+    tilt_deg=0,
+    config=scanner.config,
+    stream_pv="SIM:TOMO"
+)
+```
+
+### Advanced Streaming
+
+```python
+# Multiple PVs for different geometries
+tomo_proj = simulate_projection_series(
+    volume, lookup, voxel_size,
+    angles, tilt_deg=0, config=config,
+    stream_pv="SIM:TOMO"
+)
+
+lamino_proj = simulate_projection_series(
+    volume, lookup, voxel_size,
+    angles, tilt_deg=45, config=config,
+    stream_pv="SIM:LAMINO"
+)
+
+# List active streams
+from msim.geometry import list_active_pvs
+list_active_pvs()
+
+# Cleanup when done
+from msim.geometry import cleanup_streaming
+cleanup_streaming()
+```
+
+### Streaming Tips
+
+- **PV names**: Use descriptive names like `SIM:TOMO`, `SIM:LAMINO`, `TEST:BRAIN`
+- **Viewer connection**: Start your viewer and connect before running simulation
+- **Network**: Ensure firewall allows PVAccess traffic (default ports: 5075-5076)
+- **Performance**: Streaming adds minimal overhead (~1-2ms per frame)
+- **Multiple viewers**: Multiple viewers can connect to the same PV simultaneously
+
 ## Advanced Usage
 
 ### Custom scan parameters
 
 ```python
-from msim.interface import XRayScanner
+from msim.simulator import XRayScanner
 import numpy as np
 
 scanner = XRayScanner("config.json")
@@ -128,7 +232,7 @@ projections, dose_stats = scanner.tomography_scan(
 ### Dose analysis only
 
 ```python
-from msim.interface import analyze_dose_only
+from msim.simulator import analyze_dose_only
 
 dose_map, dose_stats = analyze_dose_only(
     "phantom_bone.zarr",
@@ -172,6 +276,28 @@ for photon_count in [1e4, 1e5, 1e6, 1e7]:
 
 ## Phantom Generation
 
+### Fast Mouse Brain Phantom
+
+Generate anatomically realistic mouse brain phantoms:
+
+```bash
+# Standard resolution (200×160×120 @ 50µm) - Fast!
+python generate_fast_brain.py
+
+# High resolution (400×320×240 @ 25µm)
+python generate_fast_brain.py --high-res
+
+# With cortical layers and detailed vasculature
+python generate_fast_brain.py --enable-layers --enable-vessels
+```
+
+Features:
+- 24 anatomical brain regions
+- Realistic tissue compositions (ICRP-based)
+- Hierarchical vascular network
+- Cortical layering (optional)
+- Generation time: 10-30 seconds (standard) or 2-3 minutes (high-res)
+
 ### Available phantom types
 
 ```bash
@@ -200,6 +326,7 @@ zarr_path, json_path = generate_phantom(
 MSim includes accurate material properties for dose calculation:
 
 - **Biological**: soft tissue, fat, muscle, cortical/trabecular bone, marrow
+- **Brain tissues**: gray matter, white matter, hippocampus, cerebellum, etc.
 - **Medical**: iodine contrast, titanium implants
 - **Industrial**: aluminum, iron, lead, carbon fiber, gold nanoparticles
 
@@ -517,11 +644,13 @@ Compare with analytical Fresnel diffraction for simple edges.
 - **CuPy arrays** for all computations
 - **Memory-efficient** volume handling
 - **Batch processing** for multiple projections
+- **PV streaming** with minimal overhead (<2ms per frame)
 
 ### Typical Performance
 - **100×128×128 volume**: ~1-2 seconds per projection (RTX 4090)
 - **Memory usage**: ~2× volume size in GPU RAM
 - **Scaling**: Linear with number of projections
+- **Streaming**: Real-time capable for typical volumes
 
 ## Validation
 
@@ -533,29 +662,72 @@ Compare with analytical Fresnel diffraction for simple edges.
 ### Test Suite
 ```bash
 python test_simulation_physics.py  # Comprehensive physics tests
-python test_rotation.py           # Geometry validation  
+python test_rotation.py           # Geometry validation
+python test_streaming.py          # PV streaming tests
 ```
 
 ## Examples
 
 See `examples/` directory for:
 - Basic tomography and laminography
+- Real-time PV streaming
 - Parameter studies (photon count, energy, geometry)
 - Material-specific dose analysis
 - Custom phantom generation
+- Mouse brain phantom simulation
 - Reconstruction workflows
+
+## Troubleshooting
+
+### PV Streaming Issues
+
+**Viewer not connecting:**
+```bash
+# Check if PV is available
+pvget SIM:TOMO
+
+# List all PVs
+pvlist | grep SIM
+
+# Check firewall (Linux)
+sudo firewall-cmd --add-port=5075-5076/tcp
+```
+
+**Image not displaying:**
+- Check image normalization in viewer settings
+- Try auto-scale or adjust min/max manually
+- Verify data is being updated: watch frame counter
+
+**Performance issues:**
+- Reduce volume size or padding
+- Disable detailed features (layers, vessels)
+- Check GPU memory usage
+
+### Common Errors
+
+**"Config object not subscriptable":**
+- Ensure `config` is a dictionary, not a class object
+- Use `config = {...}` not `config = Config()`
+
+**GPU out of memory:**
+- Reduce volume size
+- Reduce PAD value
+- Clear GPU memory: `cp.get_default_memory_pool().free_all_blocks()`
 
 ## API Reference
 
 ### Core Classes
 - `XRayScanner`: Main simulation interface
 - `GPUVolumeManager`: Memory-efficient volume handling
+- `StreamingManager`: PV streaming coordination
 
 ### Key Functions
 - `projection()`: Core wave propagation simulation
+- `simulate_projection_series()`: Series with optional streaming
 - `quick_tomography()`, `quick_laminography()`: One-line scans
 - `calculate_dose_map()`: Radiation dose computation
 - `generate_phantom()`: Test phantom creation
+- `keep_streaming_alive()`: Maintain PV server
 
 ## Contributing
 
@@ -565,3 +737,11 @@ See `examples/` directory for:
 4. Commit changes (`git commit -m 'Add amazing feature'`)
 5. Push to branch (`git push origin feature/amazing-feature`)
 6. Open Pull Request
+
+
+## Acknowledgments
+
+- XRayLib for material properties
+- Allen Mouse Brain Atlas for anatomical data
+- ICRP Publication 110 for tissue compositions
+- EPICS community for PVAccess protocol

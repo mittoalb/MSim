@@ -7,6 +7,7 @@ import numpy as np
 import json
 from msim.simulator import XRayScanner, quick_tomography, analyze_dose_only
 
+
 def create_enhanced_config():
     """Create configuration with photon statistics and dose parameters."""
     config = {
@@ -38,10 +39,10 @@ def example_basic_scan():
     
     # Quick tomography (default settings)
     projections, _ = quick_tomography(
-        "phantom_bone.zarr", 
-        "phantom_bone.json", 
+        "phantom_mouse_brain.zarr", 
+        "phantom_mouse_brain.json", 
         n_projections=90,
-        output_file="basic_tomo.h5"
+        output_file="brain-basic.h5"
     )
     
     print(f"Basic tomography completed: {projections.shape}")
@@ -51,8 +52,8 @@ def example_dose_analysis():
     print("\n=== DOSE ANALYSIS EXAMPLE ===")
     
     dose_map, dose_stats = analyze_dose_only(
-        "phantom_bone.zarr",
-        "phantom_bone.json", 
+        "phantom_mouse_brain.zarr",
+        "phantom_mouse_brain.json", 
         "enhanced_config.json"
     )
     
@@ -64,7 +65,8 @@ def example_full_scan_with_dose():
     print("\n=== FULL SCAN WITH DOSE ===")
     
     scanner = XRayScanner("enhanced_config.json")
-    scanner.load_volume("phantom_bone.zarr", "phantom_bone.json")
+    scanner.load_volume("phantom_mouse_brain.zarr", 
+                       "phantom_mouse_brain.json")
     
     # Tomography with dose
     angles_tomo = np.linspace(0, 180, 180)
@@ -96,7 +98,8 @@ def example_parameter_study():
         
         # Run scan
         scanner = XRayScanner(config_file)
-        scanner.load_volume("phantom_bone.zarr", "phantom_bone.json")
+        scanner.load_volume("phantom_mouse_brain.zarr", 
+                           "phantom_mouse_brain.json")
         
         projections, dose_stats = scanner.tomography_scan(
             np.linspace(0, 180, 36),  # Fewer angles for speed
@@ -111,9 +114,10 @@ def example_compare_geometries():
     print("\n=== GEOMETRY COMPARISON ===")
     
     scanner = XRayScanner("enhanced_config.json")
-    scanner.load_volume("phantom_bone.zarr", "phantom_bone.json")
+    scanner.load_volume("phantom_mouse_brain.zarr", 
+                       "phantom_mouse_brain.json")
     
-    angles = np.linspace(0, 180, 90)  # Same angles for fair comparison
+    angles = np.linspace(0, 360, 90)  # Same angles for fair comparison
     
     # Tomography
     print("Running tomography...")
@@ -135,8 +139,8 @@ def example_material_specific_dose():
     print("\n=== MATERIAL-SPECIFIC DOSE ===")
     
     dose_map, dose_stats = analyze_dose_only(
-        "phantom_bone.zarr",
-        "phantom_bone.json",
+        "phantom_mouse_brain.zarr",
+        "phantom_mouse_brain.json",
         "enhanced_config.json"
     )
     
@@ -163,10 +167,10 @@ def main():
         
         # Generate test phantom if needed
         import os
-        if not os.path.exists("phantom_dose_test.zarr"):
-            print("Generating bone phantom...")
-            from msim.generate_phantom import generate_phantom
-            generate_phantom("bone", shape=(64, 96, 96), voxel_size=(0.5, 0.5, 0.5))
+        if not os.path.exists("/local/data/alberto/Noe/examples/brain_map.zarr"):
+            print("Warning: brain_map.zarr not found at expected location")
+            print("Please update the paths in this script or generate a phantom")
+            return
         
         # Run examples
         example_basic_scan()
@@ -179,7 +183,7 @@ def main():
         print("\n" + "=" * 60)
         print("All examples completed successfully!")
         print("\nOutput files created:")
-        print("- basic_tomo.h5 (basic tomography)")
+        print("- brain-basic.h5 (basic tomography)")
         print("- tomo_with_dose.h5 (tomography + dose)")
         print("- tomo_photons_*.h5 (parameter study)")
         print("- compare_*.h5 (geometry comparison)")
